@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metis · Artes Digitales</title>
+<meta name="description" content="Metis, plataforma de la asignatura Artes Digitales: IA Aplicada a la Administración y la Economía.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23FFFFFF'/%3E%3Cpolygon points='3,10 15,10 34,26 34,36 18,23 18,58 3,58' fill='%2310213D'/%3E%3Cpolygon points='18,26 34,38 34,58 18,58' fill='%232457FF'/%3E%3Cpolygon points='38,32 55,21 55,58 38,58' fill='%2300A896'/%3E%3Cpolygon points='38,20 59,6 59,16 38,30' fill='%23FF6B35'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+:root{--cobalto:#2457FF;--naranja:#FF6B35;--turquesa:#00A896;--marfil:#F7F5EF;--noche:#10213D;--pizarra:#475569;--borde:#DEDBD2;--ok:#1B6F45;--mal:#B42318}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--marfil);color:var(--noche);font:16px/1.6 "Inter",system-ui,sans-serif}
+.hero{background:var(--noche);color:var(--marfil);position:relative;overflow:hidden}
+.hero .in{position:relative;z-index:1}
+.in{max-width:1080px;margin:0 auto;padding-left:max(20px,env(safe-area-inset-left));padding-right:max(20px,env(safe-area-inset-right))}
+.hero .in{padding-block:56px 48px;display:grid;gap:18px}
+.logo{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.logo svg{width:clamp(64px,10vw,100px);height:auto}
+.word{font:800 clamp(3rem,10vw,5.6rem)/.9 "Lexend",sans-serif;letter-spacing:.02em}
+.lema{font:500 clamp(.95rem,2.2vw,1.25rem)/1.3 "Lexend",sans-serif;letter-spacing:.12em}
+.lema i{font-style:normal;padding-inline:.45em;opacity:.6}
+.descr{font:500 clamp(1.1rem,2.6vw,1.55rem)/1.3 "Lexend",sans-serif}
+.descr b{color:#7FA2FF;font-weight:600}
+.franja{display:flex;height:8px}.franja i{flex:1}
+#patron{position:absolute;right:0;top:0;height:100%;width:36%;opacity:.9;-webkit-mask-image:linear-gradient(to right,transparent,#000 45%);mask-image:linear-gradient(to right,transparent,#000 45%)}
+@media (max-width:760px){#patron{width:100%;opacity:.18}}
+main .in{padding-block:40px 56px;display:grid;gap:28px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px}
+.card{background:#fff;border:1px solid var(--borde);border-radius:14px;padding:24px;display:grid;gap:14px;align-content:start}
+.card h2{margin:0;font:600 1.2rem/1.3 "Lexend",sans-serif}
+.card p{margin:0;color:var(--pizarra)}
+.btn{font:600 .92rem/1 "Lexend",sans-serif;padding:12px 18px;border-radius:8px;border:0;background:var(--cobalto);color:#fff;cursor:pointer;justify-self:start}
+.btn:focus-visible{outline:2px solid var(--naranja);outline-offset:2px}
+.res{font:400 .85rem/1.5 "JetBrains Mono",monospace;background:var(--marfil);border:1px solid var(--borde);border-radius:8px;padding:12px;white-space:pre-wrap;min-height:48px;color:var(--noche)}
+.res.ok{border-color:var(--ok)}.res.mal{border-color:var(--mal);color:var(--mal)}
+.etq{font:600 .7rem/1 "Lexend",sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--pizarra)}
+footer{border-top:1px solid var(--borde)}
+footer .in{padding-block:20px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:.85rem;color:var(--pizarra)}
+footer a{color:var(--cobalto)}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <svg id="patron" viewBox="0 0 320 400" preserveAspectRatio="xMaxYMid slice" aria-hidden="true"></svg>
+  <div class="in">
+    <div class="logo">
+      <svg viewBox="0 0 64 64" role="img" aria-label="Símbolo de Metis"><polygon points="4,12 14,12 33,27 33,34 17,22 17,56 4,56" fill="#F7F5EF"/><polygon points="17,24.5 33,36.5 33,56 17,56" fill="#2457FF"/><polygon points="37,31 52,21 52,56 37,56" fill="#00A896"/><polygon points="37,20 56,7 56,15.5 37,28.5" fill="#FF6B35"/></svg>
+      <span class="word">METIS</span>
+    </div>
+    <div class="lema">Analiza<i>·</i>Verifica<i>·</i>Decide<i>·</i>Construye</div>
+    <div class="descr"><b>Artes Digitales:</b> IA Aplicada a la Administración y la Economía</div>
+  </div>
+</header>
+<div class="franja"><i style="background:#2457FF"></i><i style="background:#00A896"></i><i style="background:#FF6B35"></i></div>
+
+<main>
+  <div class="in">
+    <div class="etq">Prueba de la etapa 0 · se reemplaza por el acceso en la etapa 1</div>
+    <div class="cards">
+      <section class="card">
+        <h2>1. Conexión con el servicio</h2>
+        <p>Comprueba que esta página conversa con el servicio de Metis en Apps Script.</p>
+        <button class="btn" id="b-ping" type="button">Probar conexión</button>
+        <div class="res" id="r-ping">Sin probar.</div>
+      </section>
+      <section class="card">
+        <h2>2. Acceso con Google</h2>
+        <p>Ingresa con tu cuenta de Google. El servicio verifica la credencial y devuelve solo tu nombre y correo.</p>
+        <div id="g-btn"></div>
+        <div class="res" id="r-google">Sin probar.</div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<footer><div class="in"><span>Metis · Luis Ernest Leyton Johns</span><a href="privacidad.html">Política de privacidad</a></div></footer>
+
+<script src="config.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer onload="iniciarGoogle()"></script>
+<script>
+const CFG = window.METIS_CONFIG || {};
+const $ = id => document.getElementById(id);
+
+function mostrar(id, texto, estado){ const el=$(id); el.textContent=texto; el.className='res'+(estado?' '+estado:''); }
+
+async function api(accion, datos){
+  if(!CFG.API_URL) throw new Error('Falta config.js con la dirección del servicio.');
+  const r = await fetch(CFG.API_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({accion, datos}) });
+  const j = await r.json();
+  if(!j.ok) throw new Error(j.error || 'Error desconocido');
+  return j.data;
+}
+
+$('b-ping').addEventListener('click', async () => {
+  mostrar('r-ping','Conectando…');
+  try {
+    const d = await api('ping', {});
+    mostrar('r-ping', 'Conectado.\nServicio: '+d.servicio+' '+d.version+'\n'+d.etapa+'\nInstalado: '+d.instalado+'\nHora del servicio: '+d.hora, 'ok');
+  } catch(e){ mostrar('r-ping', 'No se pudo conectar: '+e.message, 'mal'); }
+});
+
+function iniciarGoogle(){
+  if(!CFG.CLIENT_ID){ mostrar('r-google','Falta config.js con el ID de cliente.','mal'); return; }
+  google.accounts.id.initialize({ client_id: CFG.CLIENT_ID, callback: alIngresar, ux_mode:'popup' });
+  google.accounts.id.renderButton($('g-btn'), { theme:'outline', size:'large', text:'signin_with', shape:'rectangular', locale:'es' });
+}
+
+async function alIngresar(resp){
+  mostrar('r-google','Verificando con el servicio…');
+  try {
+    const u = await api('probarGoogle', { credential: resp.credential });
+    mostrar('r-google', 'Verificado por el servicio.\nNombre: '+u.nombre+'\nCorreo: '+u.email, 'ok');
+  } catch(e){ mostrar('r-google', 'No se pudo verificar: '+e.message, 'mal'); }
+}
+
+(function patron(){
+  let x=11; const rnd=()=>{x=(x*16807)%2147483647;return x/2147483647};
+  const C=['#2457FF','#00A896','#FF6B35','#1B3358','#2457FF','#F7F5EF'], s=40; let h='';
+  for(let r=0;r<10;r++) for(let c=0;c<8;c++){
+    if(rnd()<.3) continue;
+    const X=c*s,Y=r*s,col=C[Math.floor(rnd()*C.length)],k=Math.floor(rnd()*5);
+    const p=[`${X},${Y} ${X+s},${Y} ${X},${Y+s}`,`${X+s},${Y} ${X+s},${Y+s} ${X},${Y+s}`,`${X},${Y} ${X+s},${Y} ${X+s},${Y+s}`,`${X},${Y} ${X+s},${Y+s} ${X},${Y+s}`,`${X},${Y} ${X+s},${Y} ${X+s},${Y+s} ${X},${Y+s}`][k];
+    h+=`<polygon points="${p}" fill="${col}" opacity="${col==='#F7F5EF'?.85:1}"/>`;
+  }
+  $('patron').innerHTML=h;
+})();
+</script>
+</body>
+</html>
