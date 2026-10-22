@@ -11,9 +11,15 @@
 <link rel="stylesheet" href="metis.css">
 </head>
 <body>
-<div id="app"><div class="cargando">Cargando Metis…</div></div>
+<div id="velo-carga" class="velo-carga" role="status" aria-live="polite">
+  <svg width="72" height="72" viewBox="0 0 64 64" aria-hidden="true"><polygon points="4,12 14,12 33,27 33,34 17,22 17,56 4,56" fill="#10213D"/><polygon points="17,24.5 33,36.5 33,56 17,56" fill="#2457FF"/><polygon points="37,31 52,21 52,56 37,56" fill="#00A896"/><polygon points="37,20 56,7 56,15.5 37,28.5" fill="#FF6B35"/></svg>
+  <span class="velo-marca">METIS</span>
+  <span class="velo-texto">Por favor espere mientras se carga la página</span>
+</div>
+<div id="app"></div>
 <script src="config.js"></script>
 <script src="app.js"></script>
+<script src="vista-sesion.js"></script>
 <script src="docente.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer onload="M.gsiListo()"></script>
 </body>
