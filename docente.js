@@ -9,12 +9,12 @@
     try { D.pestana = localStorage.getItem('metis_doc_tab') || 'versiones'; D.versionId = localStorage.getItem('metis_doc_version'); } catch (e) { /* sin almacenamiento */ }
     c.innerHTML = '<div class="cabecera"><div><h1>Ambiente del docente</h1><p>Versiones del curso, registro de estudiantes y personas.</p></div><div id="d-selector"></div></div>' +
       '<div id="d-contrato"></div><nav class="tabs" id="d-tabs">' +
-      ['versiones:Versiones del curso', 'registro:Links de registro', 'personas:Personas'].map(t => { const [k, n] = t.split(':'); return '<button type="button" data-tab="' + k + '">' + n + '</button>'; }).join('') +
+      ['versiones:Versiones del curso', 'sesiones:Sesiones', 'registro:Links de registro', 'personas:Personas'].map(t => { const [k, n] = t.split(':'); return '<button type="button" data-tab="' + k + '">' + n + '</button>'; }).join('') +
       '</nav><section id="d-panel"><div class="vacio">Cargando…</div></section>';
     $('#d-tabs').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (b) irA(b.dataset.tab); });
     revisarContrato();
     await cargarVersiones();
-    irA(D.pestana);
+    await irA(D.pestana, true);
   };
 
   async function revisarContrato() {
@@ -44,12 +44,15 @@
   function recordar() { try { localStorage.setItem('metis_doc_tab', D.pestana); if (D.versionId) localStorage.setItem('metis_doc_version', D.versionId); } catch (e) { /* nada */ } }
   function versionActual() { return D.versiones.find(v => v.id === D.versionId); }
 
-  function irA(tab) {
+  /** Cambia de pestaña. Muestra el velo de carga salvo cuando ya hay uno activo (sinVelo). */
+  function irA(tab, sinVelo) {
+    if (!sinVelo) return M.conVelo(() => irA(tab, true));
+    if (['versiones', 'sesiones', 'registro', 'personas'].indexOf(tab) < 0) tab = 'versiones';
     D.pestana = tab; recordar();
     document.querySelectorAll('#d-tabs button').forEach(b => b.classList.toggle('activo', b.dataset.tab === tab));
     const p = $('#d-panel');
-    if (tab !== 'versiones' && !D.versionId) { p.innerHTML = '<div class="tarjeta"><h2 style="font-size:1.1rem">Primero crea una versión del curso</h2><p style="margin:0">Los links de registro y las personas pertenecen a una versión.</p><div><button class="btn p" type="button" id="d-ir-v">Ir a versiones</button></div></div>'; $('#d-ir-v').onclick = () => irA('versiones'); return; }
-    ({ versiones: panelVersiones, registro: panelRegistro, personas: panelPersonas })[tab](p);
+    if (tab !== 'versiones' && !D.versionId) { p.innerHTML = '<div class="tarjeta"><h2 style="font-size:1.1rem">Primero crea una versión del curso</h2><p style="margin:0">Las sesiones, los links de registro y las personas pertenecen a una versión.</p><div><button class="btn p" type="button" id="d-ir-v">Ir a versiones</button></div></div>'; $('#d-ir-v').onclick = () => irA('versiones'); return; }
+    return Promise.resolve(({ versiones: panelVersiones, sesiones: panelSesiones, registro: panelRegistro, personas: panelPersonas })[tab](p));
   }
 
   /* ---------- Versiones ---------- */
@@ -82,8 +85,108 @@
       ['institucion', 'escuela', 'logo_url', 'asignatura', 'codigo', 'periodo', 'anio', 'fecha_inicio', 'sesiones', 'sesiones_semana', 'minutos', 'asistencia_min', 'tolerancia_min', 'defensas_sesion', 'exigencia', 'whatsapp', 'estado']
         .forEach(k => { d[k] = $('#v-' + k, m.el).value; });
       await M.ocupado(ev.currentTarget, async () => {
-        try { const g = await M.api('guardarVersion', d); D.versionId = g.id; recordar(); m.cerrar(); await cargarVersiones(); irA('versiones'); }
+        try { const g = await M.api('guardarVersion', d); D.versionId = g.id; recordar(); m.cerrar(); await M.conVelo(async () => { await cargarVersiones(); await irA('versiones', true); }); }
         catch (e) { M.msg($('#v-msg', m.el), e.message, 'mal'); }
+      });
+    };
+  }
+
+  /* ---------- Sesiones ---------- */
+  async function panelSesiones(p) {
+    const v = versionActual();
+    let r;
+    try { r = await M.api('listarSesiones', { version_id: v.id }); }
+    catch (e) { p.innerHTML = '<div class="msg mal" style="margin-top:16px">' + esc(e.message) + '</div>'; return; }
+    D.sesiones = r.sesiones;
+    if (!r.sesiones.length) {
+      const base = Number(v.sesiones) === 12;
+      p.innerHTML = '<div class="tarjeta" style="margin-top:16px"><h2>Esta versión aún no tiene sesiones</h2><p class="sub">Se crearán ' + v.sesiones + ' sesiones, ' + v.sesiones_semana + ' por semana, todas ocultas.' +
+        (base ? ' Como son 12, se cargan con la planificación base del curso: título, unidad y objetivos de cada sesión, que luego puedes editar.' : '') + '</p>' +
+        '<div><button class="btn p" type="button" id="s-generar">Generar ' + v.sesiones + ' sesiones</button></div><div id="s-msg"></div></div>';
+      $('#s-generar').onclick = async ev => { await M.ocupado(ev.currentTarget, async () => { try { await M.api('generarSesiones', { version_id: v.id }); await irA('sesiones'); } catch (e) { M.msg('#s-msg', e.message, 'mal'); } }); };
+      return;
+    }
+    const semanas = {};
+    r.sesiones.forEach(s => { (semanas[s.semana] = semanas[s.semana] || []).push(s); });
+    p.innerHTML = '<div class="msg info" style="margin-top:16px">Oculta: el estudiante no la ve. Visible: ve objetivos y ruta, sin trabajar. Abierta: puede trabajar si registró asistencia. Cerrada: solo lectura. Los materiales, el control y la entrega se abren por separado. El observador ve todo como visible.</div><div id="s-msg"></div>' +
+      Object.keys(semanas).sort((a, b) => a - b).map(w => '<div class="semana-cab"><h3 class="semana-t" style="margin:0">Semana ' + w + '</h3><div class="acciones">' +
+        ['oculta:Ocultar', 'visible:Hacer visible', 'abierta:Abrir', 'cerrada:Cerrar'].map(x => { const [e, t] = x.split(':'); return '<button class="btn s peq" type="button" data-semana="' + w + '" data-estado="' + e + '">' + t + ' semana</button>'; }).join('') + '</div></div>' +
+        '<div class="tabla"><table><thead><tr><th>Nº</th><th>Sesión</th><th>Estado</th><th>Habilitado</th><th></th></tr></thead><tbody>' + semanas[w].map(filaSesion).join('') + '</tbody></table></div>').join('');
+    p.querySelectorAll('[data-semana]').forEach(b => { b.onclick = async () => { const ids = D.sesiones.filter(s => String(s.semana) === b.dataset.semana).map(s => s.id); await cambiarEstado(ids, b.dataset.estado, b); }; });
+    p.querySelectorAll('select.estado').forEach(sel => { sel.onchange = () => cambiarEstado([sel.dataset.id], sel.value, null); });
+    p.querySelectorAll('[data-apertura]').forEach(ch => { ch.onchange = async () => {
+      try { await M.api('cambiarAperturaSesion', { sesion_id: ch.dataset.id, campo: ch.dataset.apertura, valor: ch.checked }); }
+      catch (e) { ch.checked = !ch.checked; M.msg('#s-msg', e.message, 'mal'); window.scrollTo(0, 0); }
+    }; });
+    p.querySelectorAll('[data-editar-sesion]').forEach(b => { b.onclick = () => M.conVelo(() => editarSesion(b.dataset.editarSesion)); });
+    p.querySelectorAll('[data-previa]').forEach(b => { b.onclick = () => M.conVelo(() => previaSesion(b.dataset.previa)); });
+  }
+
+  function filaSesion(s) {
+    const sw = (campo, txt) => '<label class="interruptor"><input type="checkbox" data-apertura="' + campo + '" data-id="' + esc(s.id) + '"' + (s[campo] ? ' checked' : '') + '>' + txt + '</label>';
+    return '<tr><td><b>' + s.numero + '</b></td><td><b>' + esc(s.titulo) + '</b><br><small style="color:var(--pizarra)">' + esc([s.fecha ? M.fechaCorta(s.fecha) : 'Sin fecha', s.hora, s.unidad, s.n_objetivos + ' objetivos', s.n_materiales + ' materiales', s.defensa ? 'con defensa' : ''].filter(Boolean).join(' · ')) + '</small></td>' +
+      '<td><select class="estado" data-id="' + esc(s.id) + '">' + ['oculta', 'visible', 'abierta', 'cerrada'].map(e => '<option value="' + e + '"' + (s.estado === e ? ' selected' : '') + '>' + window.Sesiones.ESTADOS[e][0] + '</option>').join('') + '</select></td>' +
+      '<td><div style="display:grid;gap:4px">' + sw('materiales_visibles', 'Materiales') + sw('control_abierto', 'Control de lectura') + sw('entrega_abierta', 'Entrega') + '</div></td>' +
+      '<td><div class="acciones"><button class="btn s peq" type="button" data-editar-sesion="' + esc(s.id) + '">Editar</button><button class="btn t peq" type="button" data-previa="' + esc(s.id) + '">Vista del estudiante</button></div></td></tr>';
+  }
+
+  async function cambiarEstado(ids, estado, btn) {
+    const hacer = async () => {
+      try { await M.api('cambiarEstadoSesiones', { ids: ids, estado: estado }); await irA('sesiones', true); }
+      catch (e) { M.msg('#s-msg', e.message, 'mal'); }
+    };
+    if (btn) await M.ocupado(btn, () => M.conVelo(hacer)); else await M.conVelo(hacer);
+  }
+
+  async function previaSesion(id) {
+    const v = versionActual();
+    const s = await M.api('verSesionDocente', { sesion_id: id });
+    const m = M.modal('Vista del estudiante', window.Sesiones.vista(Object.assign({}, s, { materiales_visibles: true }), v.minutos));
+    m.el.querySelector('.modal').classList.add('ancho');
+  }
+
+  async function editarSesion(id) {
+    const v = versionActual();
+    const s = await M.api('verSesionDocente', { sesion_id: id });
+    const base = window.Sesiones.calcularRuta(v.minutos, s.ruta);
+    const minDe = k => (base.find(b => b.momento === k) || {}).minutos;
+    const m = M.modal('Sesión ' + s.numero + ' · Editar',
+      '<fieldset><legend>Datos</legend><div class="campo"><label for="e-titulo">Título *</label><input type="text" id="e-titulo" value="' + esc(s.titulo) + '"></div>' +
+      '<div class="fila"><div class="campo"><label for="e-unidad">Unidad</label><input type="text" id="e-unidad" value="' + esc(s.unidad || '') + '"></div>' +
+      '<div class="campo"><label for="e-fecha">Fecha</label><input type="date" id="e-fecha" value="' + esc(s.fecha || '') + '"></div>' +
+      '<div class="campo"><label for="e-hora">Hora de inicio</label><input type="text" id="e-hora" placeholder="18:30" value="' + esc(s.hora || '') + '"></div></div>' +
+      '<label class="check"><input type="checkbox" id="e-defensa"' + (s.defensa ? ' checked' : '') + '><span>Esta sesión tiene defensa relámpago (15 minutos antes del cierre)</span></label></fieldset>' +
+      '<fieldset><legend>Objetivos</legend><div class="campo"><label for="e-obj">En esta sesión aprenderás a…</label><textarea id="e-obj" style="font-family:var(--sans);font-size:14px;min-height:110px">' + esc((s.objetivos || []).join('\n')) + '</textarea>' +
+      '<span class="ayuda">Un objetivo por línea, comenzando con un verbo en infinitivo. Máximo seis. Reaparecen en el cierre para la autoevaluación.</span></div></fieldset>' +
+      '<fieldset><legend>Ruta de la sesión · ' + v.minutos + ' minutos</legend><div id="e-ruta">' + s.ruta.map((b, i) =>
+        '<div class="bloque-ed" data-momento="' + esc(b.momento) + '"><input type="text" data-titulo value="' + esc(b.titulo) + '"><textarea data-desc style="font-family:var(--sans);font-size:13px;min-height:56px">' + esc(b.descripcion || '') + '</textarea><span class="min">' + (minDe(b.momento) != null ? minDe(b.momento) + ' min' : '') + '</span></div>').join('') +
+      '</div><span class="ayuda">Los minutos se calculan solos según la duración de la sesión. Se recalculan al guardar.</span></fieldset>' +
+      '<fieldset><legend>Materiales</legend><div id="e-mats" style="display:grid;gap:8px"></div><div><button class="btn s peq" type="button" id="e-mat-mas">Agregar material</button></div>' +
+      '<span class="ayuda">Cuaderno y podcast en Drive, compartidos como "Cualquier persona con el enlace". Video en YouTube como "No listado". Pega la dirección completa.</span></fieldset><div id="e-msg"></div>',
+      '<button class="btn s" type="button" data-cerrar>Cancelar</button><button class="btn p" type="button" id="e-ok">Guardar sesión</button>');
+    m.el.querySelector('.modal').classList.add('ancho');
+    const cont = $('#e-mats', m.el);
+    const filaMat = x => {
+      x = x || { tipo: 'cuaderno', titulo: '', url: '' };
+      const d = document.createElement('div'); d.className = 'mat-ed';
+      d.innerHTML = '<select data-tipo>' + Object.keys(window.Sesiones.TIPOS).map(t => '<option value="' + t + '"' + (x.tipo === t ? ' selected' : '') + '>' + window.Sesiones.TIPOS[t] + '</option>').join('') + '</select>' +
+        '<input type="text" data-tit placeholder="Título" value="' + esc(x.titulo) + '"><input type="url" data-url placeholder="https://" value="' + esc(x.url) + '"><button class="btn t peq" type="button" data-quitar>Quitar</button>';
+      d.querySelector('[data-quitar]').onclick = () => d.remove();
+      cont.appendChild(d);
+    };
+    (s.materiales || []).forEach(filaMat);
+    $('#e-mat-mas', m.el).onclick = () => filaMat();
+    $('#e-ok', m.el).onclick = async ev => {
+      const d = {
+        id: s.id, titulo: $('#e-titulo', m.el).value, unidad: $('#e-unidad', m.el).value, fecha: $('#e-fecha', m.el).value, hora: $('#e-hora', m.el).value.trim(),
+        defensa: $('#e-defensa', m.el).checked,
+        objetivos: $('#e-obj', m.el).value.split('\n').map(x => x.trim().replace(/^[-•\d.)\s]+/, '')).filter(Boolean),
+        ruta: Array.from(m.el.querySelectorAll('.bloque-ed')).map(b => ({ momento: b.dataset.momento, titulo: b.querySelector('[data-titulo]').value, descripcion: b.querySelector('[data-desc]').value })),
+        materiales: Array.from(cont.querySelectorAll('.mat-ed')).map(r => ({ tipo: r.querySelector('[data-tipo]').value, titulo: r.querySelector('[data-tit]').value, url: r.querySelector('[data-url]').value.trim() })).filter(x => x.url || x.titulo)
+      };
+      await M.ocupado(ev.currentTarget, async () => {
+        try { await M.api('guardarSesion', d); m.cerrar(); await irA('sesiones'); }
+        catch (e) { M.msg($('#e-msg', m.el), e.message, 'mal'); }
       });
     };
   }

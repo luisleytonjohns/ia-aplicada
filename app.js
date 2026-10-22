@@ -2,13 +2,14 @@
 (function () {
   'use strict';
   const CFG = window.METIS_CONFIG || {};
-  const VERSION_INTERFAZ = '0.2.1';
+  const VERSION_INTERFAZ = '0.3.0';
 
   // Acciones que esta interfaz usa. Se comparan con las del servicio para detectar desajustes.
   const CONTRATO = ['ping', 'loginGoogle', 'loginClave', 'infoRegistro', 'registrarConGoogle', 'registrarConClave',
     'solicitarRecuperacion', 'restablecerClave', 'miSesion', 'cerrarSesion', 'cambiarClave', 'guardarMiFicha',
     'listarVersiones', 'guardarVersion', 'listarLinks', 'crearLink', 'desactivarLink', 'listarPersonas', 'crearPersona',
-    'actualizarPersona', 'reenviarAcceso', 'cambiarEstadoInscripcion', 'cargaMasiva', 'verFoto'];
+    'actualizarPersona', 'reenviarAcceso', 'cambiarEstadoInscripcion', 'cargaMasiva', 'verFoto',
+    'misSesiones', 'verSesion', 'listarSesiones', 'generarSesiones', 'verSesionDocente', 'guardarSesion', 'cambiarEstadoSesiones', 'cambiarAperturaSesion'];
 
   const M = window.M = { estado: { token: null, sesion: null, versionId: null }, CONTRATO: CONTRATO };
   const app = () => document.getElementById('app');
@@ -25,6 +26,14 @@
     if (!texto) { el.innerHTML = ''; return; }
     el.innerHTML = '<div class="msg ' + (tipo || 'info') + '">' + esc(texto) + '</div>';
   };
+
+  /* Velo de carga: se muestra al cargar cualquier página o vista. Admite llamadas anidadas. */
+  M.velo = {
+    n: 1, // el velo parte visible desde index.html
+    mostrar: function () { M.velo.n++; const v = document.getElementById('velo-carga'); if (v) v.classList.remove('oculto'); },
+    ocultar: function () { M.velo.n = Math.max(0, M.velo.n - 1); if (!M.velo.n) { const v = document.getElementById('velo-carga'); if (v) v.classList.add('oculto'); } }
+  };
+  M.conVelo = async function (fn) { M.velo.mostrar(); try { return await fn(); } finally { M.velo.ocultar(); } };
 
   M.ocupado = async function (btn, fn) {
     const txt = btn ? btn.innerHTML : '';
@@ -196,7 +205,7 @@
       ev.preventDefault();
       const btn = ev.submitter || $('#l-form button');
       await M.ocupado(btn, async () => {
-        try { entrar(await M.api('loginClave', { usuario: $('#l-usuario').value, clave: $('#l-clave').value })); }
+        try { const r = await M.api('loginClave', { usuario: $('#l-usuario').value, clave: $('#l-clave').value }); entrar(r); }
         catch (e) { M.msg('#l-msg', e.message, 'mal'); }
       });
     });
@@ -211,7 +220,6 @@
   }
 
   async function vistaRegistro(token) {
-    pantallaAcceso('<div class="cargando" style="min-height:30vh">Revisando el link…</div>');
     let info;
     try { info = await M.api('infoRegistro', { r: token }); }
     catch (e) { pantallaAcceso('<h1>Registro</h1><div class="msg mal">' + esc(e.message) + '</div><a class="btn s" href="./">Ir a ingresar</a>'); return; }
@@ -271,7 +279,7 @@
       ev.preventDefault();
       if ($('#c-1').value !== $('#c-2').value) { M.msg('#c-msg', 'Las claves no coinciden.', 'mal'); return; }
       await M.ocupado(ev.submitter, async () => {
-        try { await M.api('cambiarClave', { nueva: $('#c-1').value }); await cargarSesion(); }
+        try { await M.api('cambiarClave', { nueva: $('#c-1').value }); await M.conVelo(cargarSesion); }
         catch (e) { M.msg('#c-msg', e.message, 'mal'); }
       });
     });
@@ -281,7 +289,7 @@
   function entrar(r, limpiarUrl) {
     M.estado.token = r.token; guardar('metis_token', r.token);
     if (limpiarUrl) history.replaceState(null, '', location.pathname);
-    cargarSesion();
+    M.conVelo(cargarSesion);
   }
 
   async function cargarSesion() {
@@ -290,7 +298,7 @@
     const u = M.estado.sesion.usuario;
     // El cambio de clave temporal se exige solo a quien ingresó con ella (tiene clave y debe cambiarla).
     if (u.tiene_clave && u.debe_cambiar && u.rol !== 'docente') { vistaCambioObligatorio(); return; }
-    ambiente();
+    await ambiente();
   }
 
   M.salir = function (vencida) {
@@ -302,7 +310,7 @@
   };
 
   /* ---------- Ambiente ---------- */
-  function ambiente() {
+  async function ambiente() {
     const s = M.estado.sesion; const u = s.usuario;
     const rotulo = { docente: 'Docente', estudiante: 'Estudiante', observador: 'Observador' }[u.rol] || '';
     app().innerHTML = '<header class="barra"><div class="in"><div class="marca">' + M.simbolo(30, true) + '<span class="word">METIS</span></div>' +
@@ -313,12 +321,12 @@
     $('#a-salir').addEventListener('click', () => { M.salir(false); vistaLogin({ texto: 'Cerraste tu sesión.', tipo: 'ok' }); });
     $('#a-clave').addEventListener('click', modalClave);
     const c = $('#contenido');
-    if (u.rol === 'docente') { window.Docente ? window.Docente.montar(c) : (c.innerHTML = '<div class="msg mal">Falta docente.js.</div>'); return; }
+    if (u.rol === 'docente') { if (window.Docente) await window.Docente.montar(c); else c.innerHTML = '<div class="msg mal">Falta docente.js.</div>'; return; }
     if (!s.inscripciones.length) { c.innerHTML = '<div class="tarjeta"><h2>No tienes cursos activos</h2><p>Escribe a tu docente para que revise tu inscripción.</p></div>'; return; }
     const guardada = leer('metis_version');
     M.estado.versionId = (s.inscripciones.find(i => i.version.id === guardada) || s.inscripciones[0]).version.id;
     if (u.rol === 'estudiante' && !u.ficha_completa) { vistaCompletarFicha(c); return; }
-    vistaInicio(c);
+    await vistaInicio(c);
   }
 
   function selectorCurso() {
@@ -327,7 +335,7 @@
     return '<div class="selector"><label class="etq" for="a-curso">Curso</label><select id="a-curso">' + s.inscripciones.map(i => '<option value="' + esc(i.version.id) + '"' + (i.version.id === M.estado.versionId ? ' selected' : '') + '>' + esc(i.version.asignatura + ' · ' + i.version.institucion + ' · ' + i.version.periodo + ' ' + i.version.anio) + '</option>').join('') + '</select></div>';
   }
 
-  function vistaInicio(c) {
+  async function vistaInicio(c) {
     const s = M.estado.sesion; const u = s.usuario;
     const ins = s.inscripciones.find(i => i.version.id === M.estado.versionId); const v = ins.version;
     const obs = ins.rol === 'observador';
@@ -336,11 +344,38 @@
       '<div class="tarjeta"><div class="datos">' +
       dato('Sesiones', v.sesiones + ' de ' + v.minutos + ' min') + dato('Por semana', v.sesiones_semana) + dato('Inicio', fechaLarga(v.fecha_inicio) || 'Por definir') + dato('Asistencia mínima', v.asistencia_min + '%') +
       '</div>' + (v.whatsapp ? '<a class="btn s" href="' + esc(v.whatsapp) + '" target="_blank" rel="noopener">Grupo de WhatsApp del curso</a>' : '') + '</div>' +
-      '<div class="tarjeta"><h2 style="font-size:1.1rem">Tus sesiones</h2><p style="margin:0;color:var(--pizarra)">Aquí aparecerán las sesiones a medida que el docente las abra, con sus objetivos, materiales y tareas.</p></div>' +
+      '<div class="tarjeta"><h2 style="font-size:1.1rem">Tus sesiones</h2><div id="i-sesiones"><div class="vacio">Cargando sesiones…</div></div></div>' +
       (obs ? '' : '<div class="tarjeta"><div class="persona">' + (u.foto_mini ? '<img class="foto g" src="' + esc(u.foto_mini) + '" alt="">' : '') + '<div><b style="font:600 1.1rem/1.3 var(--disp)">' + esc(u.nombre) + '</b><small>' + esc(u.correo_institucional) + (u.celular ? ' · ' + esc(u.celular) : '') + '</small><br><small>' + esc([u.mencion, u.modalidad].filter(Boolean).join(' · ')) + '</small></div></div><div><button class="btn s" id="i-ficha" type="button">Editar mi ficha</button></div></div>');
-    const sel = $('#a-curso'); if (sel) sel.addEventListener('change', () => { M.estado.versionId = sel.value; guardar('metis_version', sel.value); vistaInicio(c); });
+    const sel = $('#a-curso'); if (sel) sel.addEventListener('change', () => { M.estado.versionId = sel.value; guardar('metis_version', sel.value); M.conVelo(() => vistaInicio(c)); });
     const bf = $('#i-ficha'); if (bf) bf.addEventListener('click', () => vistaCompletarFicha(c, true));
+    await cargarMisSesiones(c, v);
   }
+
+  async function cargarMisSesiones(c, v) {
+    const el = $('#i-sesiones'); if (!el) return;
+    try {
+      const r = await M.api('misSesiones', { version_id: v.id });
+      el.innerHTML = window.Sesiones.lista(r.sesiones);
+      el.querySelectorAll('[data-sesion]').forEach(b => { b.addEventListener('click', () => M.conVelo(() => abrirSesion(c, v, b.dataset.sesion))); });
+    } catch (e) { el.innerHTML = '<div class="msg mal">' + esc(e.message) + '</div>'; }
+  }
+
+  async function abrirSesion(c, v, id) {
+    c.innerHTML = '<div class="vacio">Cargando la sesión…</div>';
+    try {
+      const s = await M.api('verSesion', { sesion_id: id });
+      c.innerHTML = window.Sesiones.vista(s, s.version.minutos, { volver: true });
+      window.scrollTo(0, 0);
+      c.querySelector('[data-volver]').addEventListener('click', () => M.conVelo(() => vistaInicio(c)));
+    } catch (e) { c.innerHTML = '<div class="msg mal">' + esc(e.message) + '</div><div><button class="btn s" type="button" id="i-volver">Volver</button></div>'; $('#i-volver').onclick = () => M.conVelo(() => vistaInicio(c)); }
+  }
+  M.fechaCorta = function (f) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(f || ''));
+    if (!m) return '';
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    return ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'][d.getDay()] + ' ' + Number(m[3]) + ' ' + ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][d.getMonth()];
+  };
+  M.fechaLarga = fechaLarga;
   function fechaLarga(f) {
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(f || ''));
     if (!m) return '';
@@ -355,7 +390,7 @@
       '<form id="m-form" class="caja" style="max-width:760px" novalidate>' + M.formFicha(u, { compromiso: !u.ficha_completa }) +
       '<div id="m-msg"></div><div style="display:flex;gap:8px"><button class="btn p" type="submit">Guardar</button>' + (edicion ? '<button class="btn s" type="button" id="m-volver">Volver</button>' : '') + '</div></form>';
     const foto = M.activarFoto(c);
-    const vb = $('#m-volver'); if (vb) vb.addEventListener('click', () => vistaInicio(c));
+    const vb = $('#m-volver'); if (vb) vb.addEventListener('click', () => M.conVelo(() => vistaInicio(c)));
     $('#m-form').addEventListener('submit', async ev => {
       ev.preventDefault();
       const f = M.leerFicha(c);
@@ -363,7 +398,7 @@
       if (err) { M.msg('#m-msg', err, 'mal'); return; }
       const d = Object.assign({}, f, { foto: foto.foto, foto_mini: foto.mini, acepta_compromiso: !u.ficha_completa ? true : undefined });
       await M.ocupado(ev.submitter, async () => {
-        try { M.estado.sesion.usuario = await M.api('guardarMiFicha', d); ambiente(); }
+        try { M.estado.sesion.usuario = await M.api('guardarMiFicha', d); await M.conVelo(ambiente); }
         catch (e) { M.msg('#m-msg', e.message, 'mal'); }
       });
     });
@@ -396,13 +431,14 @@
   }
 
   /* ---------- Arranque ---------- */
-  function iniciar() {
-    const p = new URLSearchParams(location.search);
-    if (p.get('r')) { vistaRegistro(p.get('r')); return; }
-    if (p.get('reset')) { vistaReset(p.get('reset')); return; }
-    M.estado.token = leer('metis_token');
-    if (M.estado.token) { app().innerHTML = '<div class="cargando">Cargando tu espacio…</div>'; cargarSesion(); }
-    else vistaLogin();
+  async function iniciar() {
+    try {
+      const p = new URLSearchParams(location.search);
+      if (p.get('r')) { await vistaRegistro(p.get('r')); return; }
+      if (p.get('reset')) { vistaReset(p.get('reset')); return; }
+      M.estado.token = leer('metis_token');
+      if (M.estado.token) await cargarSesion(); else vistaLogin();
+    } finally { M.velo.ocultar(); }
   }
   M.version = VERSION_INTERFAZ;
   document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', iniciar) : iniciar();

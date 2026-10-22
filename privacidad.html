@@ -21,9 +21,14 @@ p,li{color:var(--pizarra)}
 strong{color:var(--noche)}
 a{color:var(--cobalto)}
 footer{border-top:1px solid var(--borde);font-size:.85rem;color:var(--pizarra)}
+.velo-carga{position:fixed;inset:0;z-index:100;background:rgba(247,245,239,.96);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px}
+.velo-carga.oculto{display:none}
+.velo-carga span{font:500 .95rem/1.4 "Lexend",sans-serif;color:var(--pizarra)}
+.velo-carga b{font:800 1.6rem/1 "Lexend",sans-serif;color:var(--noche)}
 </style>
 </head>
 <body>
+<div id="velo-carga" class="velo-carga" role="status"><svg width="72" height="72" viewBox="0 0 64 64" aria-hidden="true"><polygon points="4,12 14,12 33,27 33,34 17,22 17,56 4,56" fill="#10213D"/><polygon points="17,24.5 33,36.5 33,56 17,56" fill="#2457FF"/><polygon points="37,31 52,21 52,56 37,56" fill="#00A896"/><polygon points="37,20 56,7 56,15.5 37,28.5" fill="#FF6B35"/></svg><b>METIS</b><span>Por favor espere mientras se carga la página</span></div>
 <header><div class="in"><div class="marca">
 <svg width="40" height="40" viewBox="0 0 64 64" aria-hidden="true"><polygon points="4,12 14,12 33,27 33,34 17,22 17,56 4,56" fill="#F7F5EF"/><polygon points="17,24.5 33,36.5 33,56 17,56" fill="#2457FF"/><polygon points="37,31 52,21 52,56 37,56" fill="#00A896"/><polygon points="37,20 56,7 56,15.5 37,28.5" fill="#FF6B35"/></svg>
 <span>METIS</span></div></div>
@@ -61,5 +66,6 @@ footer{border-top:1px solid var(--borde);font-size:.85rem;color:var(--pizarra)}
 </main>
 
 <footer><div class="in">Creado por <strong>Luis Ernest Leyton Johns</strong> · ORCID <a href="https://orcid.org/0000-0002-4462-403X">0000-0002-4462-403X</a> · <a href="https://linkedin.com/in/luis-leyton-johns">linkedin.com/in/luis-leyton-johns</a><br>© 2026 Metis. Todos los derechos reservados. · <a href="./">Volver a Metis</a></div></footer>
+<script>window.addEventListener('load', function () { document.getElementById('velo-carga').classList.add('oculto'); });</script>
 </body>
 </html>
