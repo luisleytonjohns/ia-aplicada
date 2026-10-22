@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const CFG = window.METIS_CONFIG || {};
-  const VERSION_INTERFAZ = '0.2.0';
+  const VERSION_INTERFAZ = '0.2.1';
 
   // Acciones que esta interfaz usa. Se comparan con las del servicio para detectar desajustes.
   const CONTRATO = ['ping', 'loginGoogle', 'loginClave', 'infoRegistro', 'registrarConGoogle', 'registrarConClave',
@@ -78,9 +78,10 @@
     return '<svg class="patron" viewBox="0 0 ' + cols * s + ' ' + filas * s + '" preserveAspectRatio="xMidYMax slice" aria-hidden="true">' + h + '</svg>';
   }
   function panelMarca(extra) {
+    // Cuando hay un bloque de curso (registro), el descriptor general se omite para no repetir el nombre de la asignatura.
     return '<aside class="panel">' + patron(13, 12, 6) + '<div class="contenido"><div class="marca">' + M.simbolo(64, true) + '<span class="word">METIS</span></div>' +
       '<div class="lema">Analiza · Verifica · Decide · Construye</div>' +
-      '<div class="descr"><b>Artes Digitales:</b> IA Aplicada a la Administración y la Economía</div>' + (extra || '') + '</div></aside>';
+      (extra ? '' : '<div class="descr"><b>Artes Digitales:</b> IA Aplicada a la Administración y la Economía</div>') + (extra || '') + '</div></aside>';
   }
   function pantallaAcceso(contenido, extraPanel) {
     app().innerHTML = '<div class="acceso">' + panelMarca(extraPanel) + '<section class="lado"><div class="caja">' + contenido + '</div></section></div>' + M.pie();
@@ -333,12 +334,18 @@
     c.innerHTML = '<div class="cabecera"><div><h1>' + esc(v.asignatura) + '</h1><p>' + esc([v.institucion, v.escuela, [v.periodo, v.anio].filter(Boolean).join(' ')].filter(Boolean).join(' · ')) + '</p></div>' + selectorCurso() + '</div>' +
       (obs ? '<div class="msg info">Perfil observador: ves el curso tal como lo ve un estudiante, con un proyecto de ejemplo. No puedes enviar trabajos.</div>' : '') +
       '<div class="tarjeta"><div class="datos">' +
-      dato('Sesiones', v.sesiones + ' de ' + v.minutos + ' min') + dato('Por semana', v.sesiones_semana) + dato('Inicio', v.fecha_inicio || 'Por definir') + dato('Asistencia mínima', v.asistencia_min + '%') +
+      dato('Sesiones', v.sesiones + ' de ' + v.minutos + ' min') + dato('Por semana', v.sesiones_semana) + dato('Inicio', fechaLarga(v.fecha_inicio) || 'Por definir') + dato('Asistencia mínima', v.asistencia_min + '%') +
       '</div>' + (v.whatsapp ? '<a class="btn s" href="' + esc(v.whatsapp) + '" target="_blank" rel="noopener">Grupo de WhatsApp del curso</a>' : '') + '</div>' +
       '<div class="tarjeta"><h2 style="font-size:1.1rem">Tus sesiones</h2><p style="margin:0;color:var(--pizarra)">Aquí aparecerán las sesiones a medida que el docente las abra, con sus objetivos, materiales y tareas.</p></div>' +
       (obs ? '' : '<div class="tarjeta"><div class="persona">' + (u.foto_mini ? '<img class="foto g" src="' + esc(u.foto_mini) + '" alt="">' : '') + '<div><b style="font:600 1.1rem/1.3 var(--disp)">' + esc(u.nombre) + '</b><small>' + esc(u.correo_institucional) + (u.celular ? ' · ' + esc(u.celular) : '') + '</small><br><small>' + esc([u.mencion, u.modalidad].filter(Boolean).join(' · ')) + '</small></div></div><div><button class="btn s" id="i-ficha" type="button">Editar mi ficha</button></div></div>');
     const sel = $('#a-curso'); if (sel) sel.addEventListener('change', () => { M.estado.versionId = sel.value; guardar('metis_version', sel.value); vistaInicio(c); });
     const bf = $('#i-ficha'); if (bf) bf.addEventListener('click', () => vistaCompletarFicha(c, true));
+  }
+  function fechaLarga(f) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(f || ''));
+    if (!m) return '';
+    const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+    return Number(m[3]) + ' de ' + meses[Number(m[2]) - 1] + ' de ' + m[1];
   }
   function dato(t, v) { return '<div class="dato"><span>' + esc(t) + '</span><b>' + esc(v) + '</b></div>'; }
 
