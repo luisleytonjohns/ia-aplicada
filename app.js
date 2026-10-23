@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const CFG = window.METIS_CONFIG || {};
-  const VERSION_INTERFAZ = '0.3.0';
+  const VERSION_INTERFAZ = '0.4.0';
 
   // Acciones que esta interfaz usa. Se comparan con las del servicio para detectar desajustes.
   const CONTRATO = ['ping', 'loginGoogle', 'loginClave', 'infoRegistro', 'registrarConGoogle', 'registrarConClave',
@@ -11,7 +11,7 @@
     'actualizarPersona', 'reenviarAcceso', 'cambiarEstadoInscripcion', 'cargaMasiva', 'verFoto',
     'misSesiones', 'verSesion', 'listarSesiones', 'generarSesiones', 'verSesionDocente', 'guardarSesion', 'cambiarEstadoSesiones', 'cambiarAperturaSesion'];
 
-  const M = window.M = { estado: { token: null, sesion: null, versionId: null }, CONTRATO: CONTRATO };
+  const M = window.M = { estado: { token: null, sesion: null, versionId: null }, CONTRATO: CONTRATO, ESPERA_MAX_MS: 40000 };
   const app = () => document.getElementById('app');
 
   /* ---------- Utilidades ---------- */
@@ -43,12 +43,18 @@
 
   M.api = async function (accion, datos) {
     if (!CFG.API_URL) throw new Error('Falta config.js con la dirección del servicio.');
-    let r;
+    // Límite de espera: si el servicio no responde, se informa en vez de dejar el velo pegado.
+    const control = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const reloj = control ? setTimeout(() => control.abort(), M.ESPERA_MAX_MS) : null;
+    let r, j;
     try {
       r = await fetch(CFG.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ accion: accion, token: M.estado.token, datos: datos || {} }) });
-    } catch (e) { throw new Error('No hay conexión con el servicio. Revisa tu internet y vuelve a intentarlo.'); }
-    const j = await r.json();
+        body: JSON.stringify({ accion: accion, token: M.estado.token, datos: datos || {} }), signal: control ? control.signal : undefined });
+      j = await r.json();
+    } catch (e) {
+      if (e && e.name === 'AbortError') throw new Error('El servicio tardó demasiado en responder. Espera unos segundos y vuelve a intentarlo.');
+      throw new Error('No hay conexión con el servicio. Revisa tu internet y vuelve a intentarlo.');
+    } finally { if (reloj) clearTimeout(reloj); }
     if (!j.ok) {
       if (/sesión venció|Debes ingresar/.test(j.error || '') && accion !== 'miSesion') { M.salir(true); }
       throw new Error(j.error || 'Error desconocido.');
@@ -294,39 +300,84 @@
 
   async function cargarSesion() {
     try { M.estado.sesion = await M.api('miSesion'); }
-    catch (e) { M.salir(false); vistaLogin({ texto: e.message, tipo: 'aviso' }); return; }
+    catch (e) {
+      if (/tardó demasiado|No hay conexión/.test(e.message)) { vistaReintentar(e.message); return; }
+      M.salir(false); vistaLogin({ texto: e.message, tipo: 'aviso' }); return;
+    }
     const u = M.estado.sesion.usuario;
     // El cambio de clave temporal se exige solo a quien ingresó con ella (tiene clave y debe cambiarla).
     if (u.tiene_clave && u.debe_cambiar && u.rol !== 'docente') { vistaCambioObligatorio(); return; }
     await ambiente();
   }
 
+  /** Pantalla cuando el servicio no respondió: conserva la sesión y permite reintentar. */
+  function vistaReintentar(mensaje) {
+    pantallaAcceso('<div><h1>No pudimos cargar tu espacio</h1><p class="sub">' + esc(mensaje) + '</p></div>' +
+      '<button class="btn p ancho" type="button" id="z-reintentar">Reintentar</button><button class="btn t" type="button" id="z-salir">Ingresar con otra cuenta</button>');
+    $('#z-reintentar').addEventListener('click', () => M.conVelo(cargarSesion));
+    $('#z-salir').addEventListener('click', () => { M.salir(false); vistaLogin(); });
+  }
+
   M.salir = function (vencida) {
     const t = M.estado.token;
+    M.limpiarRelojes();
     M.estado = { token: null, sesion: null, versionId: null };
     guardar('metis_token', null);
+    if (location.hash) history.replaceState(null, '', location.pathname);
     if (t && !vencida) fetch(CFG.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ accion: 'cerrarSesion', token: t }) }).catch(() => {});
     if (vencida) vistaLogin({ texto: 'Tu sesión venció. Vuelve a ingresar.', tipo: 'aviso' });
   };
+
+  /* ---------- Relojes: se limpian en cada cambio de vista ---------- */
+  M.relojes = [];
+  M.limpiarRelojes = function () { M.relojes.splice(0).forEach(clearInterval); };
+
+  /* ---------- Navegación con rutas en la dirección (#inicio, #sesion/ID, #ficha, #d/pestaña) ----------
+     Así el botón Atrás del navegador se mueve dentro de Metis y recargar la página conserva la vista. */
+  M.ir = function (ruta) {
+    if (location.hash === ruta) return M.conVelo(enrutar);
+    location.hash = ruta;
+  };
+  window.addEventListener('hashchange', () => { if (M.estado.sesion && $('#contenido')) M.conVelo(enrutar); });
+
+  async function enrutar() {
+    M.limpiarRelojes();
+    const c = $('#contenido'); if (!c) return;
+    const s = M.estado.sesion, u = s.usuario;
+    const partes = location.hash.replace(/^#\/?/, '').split('/');
+    const base = partes[0] || 'inicio', arg = partes.slice(1).join('/');
+    window.scrollTo(0, 0);
+    if (u.rol === 'docente') {
+      if (!window.Docente) { c.innerHTML = '<div class="msg mal">Falta docente.js.</div>'; return; }
+      await window.Docente.ir(c, base === 'd' ? arg : '');
+      return;
+    }
+    if (!s.inscripciones.length) { c.innerHTML = '<div class="tarjeta"><h2>No tienes cursos activos</h2><p>Escribe a tu docente para que revise tu inscripción.</p></div>'; return; }
+    if (u.rol === 'estudiante' && !u.ficha_completa) { vistaCompletarFicha(c); return; }
+    if (!location.hash) history.replaceState(null, '', location.pathname + '#inicio');
+    if (base === 'sesion' && arg) { await abrirSesion(c, arg); return; }
+    if (base === 'ficha') { vistaCompletarFicha(c, true); return; }
+    await vistaInicio(c);
+  }
 
   /* ---------- Ambiente ---------- */
   async function ambiente() {
     const s = M.estado.sesion; const u = s.usuario;
     const rotulo = { docente: 'Docente', estudiante: 'Estudiante', observador: 'Observador' }[u.rol] || '';
-    app().innerHTML = '<header class="barra"><div class="in"><div class="marca">' + M.simbolo(30, true) + '<span class="word">METIS</span></div>' +
-      '<div class="usuario">' + (u.foto_mini ? '<img class="foto" style="width:30px;height:30px" src="' + esc(u.foto_mini) + '" alt="">' : '') +
-      '<span><b>' + esc(u.primer_nombre || u.nombre) + '</b> · ' + rotulo + '</span>' +
-      '<button class="btn t" id="a-clave" type="button">Clave</button><button class="btn t" id="a-salir" type="button">Salir</button></div></div></header>' + M.franja +
+    const inicio = u.rol === 'docente' ? '#d/hoy' : '#inicio';
+    app().innerHTML = '<header class="barra"><div class="in"><a class="marca" href="' + inicio + '" aria-label="Ir al inicio">' + M.simbolo(30, true) + '<span class="word">METIS</span></a>' +
+      '<nav class="usuario"><a class="btn t" href="' + inicio + '">Inicio</a>' +
+      (u.foto_mini ? '<img class="foto" style="width:30px;height:30px" src="' + esc(u.foto_mini) + '" alt="">' : '') +
+      '<span class="quien"><b>' + esc(u.primer_nombre || u.nombre) + '</b> · ' + rotulo + '</span>' +
+      '<button class="btn t" id="a-clave" type="button">Clave</button><button class="btn t" id="a-salir" type="button">Salir</button></nav></div></header>' + M.franja +
       '<main class="ambiente"><div class="in" id="contenido"></div></main>' + M.pie();
     $('#a-salir').addEventListener('click', () => { M.salir(false); vistaLogin({ texto: 'Cerraste tu sesión.', tipo: 'ok' }); });
     $('#a-clave').addEventListener('click', modalClave);
-    const c = $('#contenido');
-    if (u.rol === 'docente') { if (window.Docente) await window.Docente.montar(c); else c.innerHTML = '<div class="msg mal">Falta docente.js.</div>'; return; }
-    if (!s.inscripciones.length) { c.innerHTML = '<div class="tarjeta"><h2>No tienes cursos activos</h2><p>Escribe a tu docente para que revise tu inscripción.</p></div>'; return; }
-    const guardada = leer('metis_version');
-    M.estado.versionId = (s.inscripciones.find(i => i.version.id === guardada) || s.inscripciones[0]).version.id;
-    if (u.rol === 'estudiante' && !u.ficha_completa) { vistaCompletarFicha(c); return; }
-    await vistaInicio(c);
+    if (u.rol !== 'docente' && s.inscripciones.length) {
+      const guardada = leer('metis_version');
+      M.estado.versionId = (s.inscripciones.find(i => i.version.id === guardada) || s.inscripciones[0]).version.id;
+    }
+    await enrutar();
   }
 
   function selectorCurso() {
@@ -335,39 +386,105 @@
     return '<div class="selector"><label class="etq" for="a-curso">Curso</label><select id="a-curso">' + s.inscripciones.map(i => '<option value="' + esc(i.version.id) + '"' + (i.version.id === M.estado.versionId ? ' selected' : '') + '>' + esc(i.version.asignatura + ' · ' + i.version.institucion + ' · ' + i.version.periodo + ' ' + i.version.anio) + '</option>').join('') + '</select></div>';
   }
 
-  async function vistaInicio(c) {
-    const s = M.estado.sesion; const u = s.usuario;
-    const ins = s.inscripciones.find(i => i.version.id === M.estado.versionId); const v = ins.version;
-    const obs = ins.rol === 'observador';
-    c.innerHTML = '<div class="cabecera"><div><h1>' + esc(v.asignatura) + '</h1><p>' + esc([v.institucion, v.escuela, [v.periodo, v.anio].filter(Boolean).join(' ')].filter(Boolean).join(' · ')) + '</p></div>' + selectorCurso() + '</div>' +
-      (obs ? '<div class="msg info">Perfil observador: ves el curso tal como lo ve un estudiante, con un proyecto de ejemplo. No puedes enviar trabajos.</div>' : '') +
-      '<div class="tarjeta"><div class="datos">' +
-      dato('Sesiones', v.sesiones + ' de ' + v.minutos + ' min') + dato('Por semana', v.sesiones_semana) + dato('Inicio', fechaLarga(v.fecha_inicio) || 'Por definir') + dato('Asistencia mínima', v.asistencia_min + '%') +
-      '</div>' + (v.whatsapp ? '<a class="btn s" href="' + esc(v.whatsapp) + '" target="_blank" rel="noopener">Grupo de WhatsApp del curso</a>' : '') + '</div>' +
-      '<div class="tarjeta"><h2 style="font-size:1.1rem">Tus sesiones</h2><div id="i-sesiones"><div class="vacio">Cargando sesiones…</div></div></div>' +
-      (obs ? '' : '<div class="tarjeta"><div class="persona">' + (u.foto_mini ? '<img class="foto g" src="' + esc(u.foto_mini) + '" alt="">' : '') + '<div><b style="font:600 1.1rem/1.3 var(--disp)">' + esc(u.nombre) + '</b><small>' + esc(u.correo_institucional) + (u.celular ? ' · ' + esc(u.celular) : '') + '</small><br><small>' + esc([u.mencion, u.modalidad].filter(Boolean).join(' · ')) + '</small></div></div><div><button class="btn s" id="i-ficha" type="button">Editar mi ficha</button></div></div>');
-    const sel = $('#a-curso'); if (sel) sel.addEventListener('change', () => { M.estado.versionId = sel.value; guardar('metis_version', sel.value); M.conVelo(() => vistaInicio(c)); });
-    const bf = $('#i-ficha'); if (bf) bf.addEventListener('click', () => vistaCompletarFicha(c, true));
-    await cargarMisSesiones(c, v);
+  function inscripcionActual() {
+    const s = M.estado.sesion;
+    return s.inscripciones.find(i => i.version.id === M.estado.versionId) || s.inscripciones[0];
   }
 
-  async function cargarMisSesiones(c, v) {
-    const el = $('#i-sesiones'); if (!el) return;
+  /* ---------- Inicio del estudiante: hoy, pendientes, progreso y proyecto ---------- */
+  async function vistaInicio(c) {
+    const u = M.estado.sesion.usuario;
+    const ins = inscripcionActual(); const v = ins.version;
+    const obs = ins.rol === 'observador';
+    c.innerHTML = '<div class="cabecera"><div><span class="lema" style="color:var(--pizarra)">Hola, ' + esc(u.primer_nombre || u.nombre) + '</span><h1>' + esc(v.asignatura) + '</h1><p>' + esc([v.institucion, v.escuela, [v.periodo, v.anio].filter(Boolean).join(' ')].filter(Boolean).join(' · ')) + '</p></div>' + selectorCurso() + '</div>' +
+      (obs ? '<div class="msg info">Perfil observador: ves el curso tal como lo ve un estudiante, con un proyecto de ejemplo. No puedes enviar trabajos.</div>' : '') +
+      '<div class="inicio-grid">' +
+      '<section class="tarjeta hoy" id="i-hoy"><div class="vacio">Cargando…</div></section>' +
+      '<section class="tarjeta" id="i-pend"><h2>Pendientes</h2><div class="vacio">Cargando…</div></section>' +
+      '<section class="tarjeta" id="i-prog"><h2>Mi progreso</h2><div class="vacio">Cargando…</div></section>' +
+      (obs ? '' : '<section class="tarjeta"><h2>Mi proyecto</h2><div class="persona">' + (u.foto_mini ? '<img class="foto g" src="' + esc(u.foto_mini) + '" alt="">' : '') +
+        '<div><b style="font:600 1.05rem/1.3 var(--disp)">' + esc(u.nombre) + '</b><small>' + esc(u.correo_institucional) + (u.celular ? ' · ' + esc(u.celular) : '') + '</small></div></div>' +
+        '<div class="datos">' + dato('Mención o área', u.mencion || 'Por completar') + dato('Organización', u.organizacion || 'Caso de referencia') + dato('Modalidad', u.modalidad || 'Por definir') + '</div>' +
+        '<div><a class="btn s" href="#ficha">Editar mi ficha</a></div></section>') +
+      '</div>' +
+      '<section class="tarjeta"><h2>Todas tus sesiones</h2><div id="i-sesiones"><div class="vacio">Cargando sesiones…</div></div></section>' +
+      '<section class="tarjeta"><h2>El curso</h2><div class="datos">' +
+      dato('Sesiones', v.sesiones + ' de unos ' + v.minutos + ' min') + dato('Por semana', v.sesiones_semana) + dato('Inicio', fechaLarga(v.fecha_inicio) || 'Por definir') +
+      dato('Horario', v.hora_inicio ? 'Desde las ' + v.hora_inicio : 'Por definir') + dato('Asistencia mínima', v.asistencia_min + '%') +
+      '</div>' + (v.whatsapp ? '<div><a class="btn s" href="' + esc(v.whatsapp) + '" target="_blank" rel="noopener">Grupo de WhatsApp del curso</a></div>' : '') + '</section>';
+    const sel = $('#a-curso'); if (sel) sel.addEventListener('change', () => { M.estado.versionId = sel.value; guardar('metis_version', sel.value); M.conVelo(enrutar); });
+
+    let ses = [];
     try {
       const r = await M.api('misSesiones', { version_id: v.id });
-      el.innerHTML = window.Sesiones.lista(r.sesiones);
-      el.querySelectorAll('[data-sesion]').forEach(b => { b.addEventListener('click', () => M.conVelo(() => abrirSesion(c, v, b.dataset.sesion))); });
-    } catch (e) { el.innerHTML = '<div class="msg mal">' + esc(e.message) + '</div>'; }
+      ses = (r && Array.isArray(r.sesiones)) ? r.sesiones : [];
+    } catch (e) {
+      ['#i-hoy', '#i-pend', '#i-prog'].forEach(x => { const el = $(x); if (el) el.innerHTML = ''; });
+      $('#i-sesiones').innerHTML = '<div class="msg mal">' + esc(e.message) + '</div>';
+      return;
+    }
+    if (!$('#i-hoy')) return; // el usuario ya cambió de vista
+    const S = window.Sesiones;
+    const hoy = bloqueHoy(ses, v);
+    $('#i-hoy').innerHTML = hoy.html;
+    if (hoy.sesion && hoy.sesion.fecha === S.hoy()) S.activarReloj(hoy.sesion, v);
+    $('#i-pend').innerHTML = '<h2>Pendientes</h2>' + bloquePendientes(ses);
+    $('#i-prog').innerHTML = '<h2>Mi progreso</h2>' + bloqueProgreso(ses, v);
+    $('#i-sesiones').innerHTML = S.lista(ses, v);
   }
 
-  async function abrirSesion(c, v, id) {
+  function bloqueHoy(ses, v) {
+    const S = window.Sesiones, hoy = S.hoy();
+    const conFecha = ses.filter(x => x.fecha).sort((a, b) => (a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : a.numero - b.numero));
+    const s = conFecha.find(x => x.fecha === hoy) || conFecha.find(x => x.fecha > hoy);
+    if (!s) return { html: '<h2>Próxima sesión</h2><p class="sub">' + (ses.length ? 'Las fechas de las próximas sesiones se publicarán pronto.' : 'Aún no hay sesiones habilitadas. Aparecerán aquí cuando el docente las abra.') + '</p>' };
+    const esHoy = s.fecha === hoy, r = S.momentos(s, v);
+    const agenda = r.inicio != null ? '<ol class="agenda">' + r.lista.map(m => '<li><span>' + m.horaDesde + '</span>' + esc(m.titulo) + (m.recreo ? ' <small>con recreo de ' + m.recreo + ' min</small>' : '') + '</li>').join('') + '<li><span>' + S.aHora(r.fin) + '</span>Término</li></ol>' : '';
+    const prepara = esHoy ? 'Ten a mano tu proyecto y los datos sintéticos con que trabajas. El plazo para completar lo de hoy vence a las 23:59.'
+      : (s.materiales_visibles && s.n_materiales ? 'Antes de la clase revisa ' + (s.n_materiales === 1 ? 'el material' : 'los ' + s.n_materiales + ' materiales') + ' de la sesión.' : 'Cuando el docente publique los materiales, revísalos antes de la clase.');
+    return {
+      sesion: s,
+      html: '<span class="lema" style="color:var(--naranja-t)">' + (esHoy ? 'Hoy' : 'Próxima sesión') + '</span>' +
+        '<h2>Sesión ' + s.numero + ' · ' + esc(s.titulo) + '</h2><p class="sub" style="margin:0">' + esc([M.fechaLarga(s.fecha), r.inicio != null ? S.aHora(r.inicio) + ' a ' + S.aHora(r.fin) : ''].filter(Boolean).join(' · ')) + '</p>' +
+        (esHoy ? '<div id="reloj-sesion">' + S.relojHTML(s, v) + '</div>' : '') + agenda +
+        '<p class="prepara"><b>Qué preparar:</b> ' + esc(prepara) + '</p><div><a class="btn p" href="#sesion/' + esc(s.id) + '">Entrar a la sesión</a></div>'
+    };
+  }
+
+  function bloquePendientes(ses) {
+    const hoy = window.Sesiones.hoy(), items = [];
+    ses.forEach(s => {
+      const ref = 'Sesión ' + s.numero + ' · ' + s.titulo, href = '#sesion/' + s.id;
+      if (s.entrega_abierta) items.push({ c: 'naranja', t: 'Entrega abierta', r: ref, d: s.fecha === hoy ? 'Plazo: hoy hasta las 23:59' : 'Plazo: hasta las 23:59 del día de la clase', href: href });
+      if (s.control_abierto) items.push({ c: 'cobalto', t: 'Control de lectura disponible', r: ref, d: 'Respóndelo durante la clase', href: href });
+      if (s.materiales_visibles && s.n_materiales && (!s.fecha || s.fecha >= hoy)) items.push({ c: 'turquesa', t: 'Materiales para revisar', r: ref, d: s.n_materiales + (s.n_materiales === 1 ? ' material' : ' materiales'), href: href });
+    });
+    if (!items.length) return '<p class="sub">No tienes pendientes por ahora. Las entregas y controles aparecerán aquí cuando el docente los abra.</p>';
+    return '<ul class="pendientes">' + items.map(i => '<li class="' + i.c + '"><a href="' + esc(i.href) + '"><b>' + esc(i.t) + '</b><span>' + esc(i.r) + '</span><small>' + esc(i.d) + '</small></a></li>').join('') + '</ul>';
+  }
+
+  function bloqueProgreso(ses, v) {
+    const hoy = window.Sesiones.hoy();
+    const total = Number(v.sesiones) || ses.length || 12;
+    const hecha = s => s.estado === 'cerrada' || (s.fecha && s.fecha < hoy);
+    const hechas = ses.filter(hecha).length;
+    const pct = Math.round(100 * hechas / total);
+    const hitoEn = f => Math.max(1, Math.round(total * f));
+    const hitos = [['H1', 'Diagnóstico', hitoEn(0.25)], ['H2', 'Verificación', hitoEn(0.5)], ['H3', 'Prototipo', hitoEn(0.75)], ['H4', 'Beta', Math.max(1, total - 1)], ['Final', 'Informe', total]];
+    const lograda = n => ses.some(s => s.numero === n && hecha(s));
+    return '<div class="progreso"><div class="barra-p"><i style="width:' + pct + '%"></i></div><p><b>' + hechas + ' de ' + total + '</b> sesiones realizadas</p></div>' +
+      '<ol class="hitos">' + hitos.map(h => '<li class="' + (lograda(h[2]) ? 'hecho' : '') + '"><span class="h">' + h[0] + '</span><b>' + h[1] + '</b><small>Sesión ' + h[2] + '</small></li>').join('') + '</ol>' +
+      '<p class="sub" style="font-size:.82rem;margin:0">La asistencia y las calificaciones se mostrarán aquí cuando se registren.</p>';
+  }
+
+  async function abrirSesion(c, id) {
     c.innerHTML = '<div class="vacio">Cargando la sesión…</div>';
     try {
       const s = await M.api('verSesion', { sesion_id: id });
-      c.innerHTML = window.Sesiones.vista(s, s.version.minutos, { volver: true });
-      window.scrollTo(0, 0);
-      c.querySelector('[data-volver]').addEventListener('click', () => M.conVelo(() => vistaInicio(c)));
-    } catch (e) { c.innerHTML = '<div class="msg mal">' + esc(e.message) + '</div><div><button class="btn s" type="button" id="i-volver">Volver</button></div>'; $('#i-volver').onclick = () => M.conVelo(() => vistaInicio(c)); }
+      if (!$('#contenido')) return;
+      c.innerHTML = window.Sesiones.vista(s, s.version, { volver: true });
+      if (s.fecha === window.Sesiones.hoy()) window.Sesiones.activarReloj(s, s.version);
+    } catch (e) { c.innerHTML = '<div class="msg mal">' + esc(e.message) + '</div><div><a class="btn s" href="#inicio">Volver al inicio</a></div>'; }
   }
   M.fechaCorta = function (f) {
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(f || ''));
@@ -383,14 +500,14 @@
     return Number(m[3]) + ' de ' + meses[Number(m[2]) - 1] + ' de ' + m[1];
   }
   function dato(t, v) { return '<div class="dato"><span>' + esc(t) + '</span><b>' + esc(v) + '</b></div>'; }
+  M.dato = dato;
 
   function vistaCompletarFicha(c, edicion) {
     const u = M.estado.sesion.usuario;
     c.innerHTML = '<div class="cabecera"><div><h1>' + (edicion ? 'Mi ficha' : 'Completa tu ficha') + '</h1><p>' + (edicion ? 'Actualiza tus datos.' : 'Antes de entrar al curso necesitamos tus datos y tu fotografía.') + '</p></div></div>' +
       '<form id="m-form" class="caja" style="max-width:760px" novalidate>' + M.formFicha(u, { compromiso: !u.ficha_completa }) +
-      '<div id="m-msg"></div><div style="display:flex;gap:8px"><button class="btn p" type="submit">Guardar</button>' + (edicion ? '<button class="btn s" type="button" id="m-volver">Volver</button>' : '') + '</div></form>';
+      '<div id="m-msg"></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn p" type="submit">Guardar</button>' + (edicion ? '<a class="btn s" href="#inicio">Volver</a>' : '') + '</div></form>';
     const foto = M.activarFoto(c);
-    const vb = $('#m-volver'); if (vb) vb.addEventListener('click', () => M.conVelo(() => vistaInicio(c)));
     $('#m-form').addEventListener('submit', async ev => {
       ev.preventDefault();
       const f = M.leerFicha(c);
@@ -398,11 +515,12 @@
       if (err) { M.msg('#m-msg', err, 'mal'); return; }
       const d = Object.assign({}, f, { foto: foto.foto, foto_mini: foto.mini, acepta_compromiso: !u.ficha_completa ? true : undefined });
       await M.ocupado(ev.submitter, async () => {
-        try { M.estado.sesion.usuario = await M.api('guardarMiFicha', d); await M.conVelo(ambiente); }
+        try { M.estado.sesion.usuario = await M.api('guardarMiFicha', d); history.replaceState(null, '', location.pathname + '#inicio'); await M.conVelo(ambiente); }
         catch (e) { M.msg('#m-msg', e.message, 'mal'); }
       });
     });
   }
+
 
   /* ---------- Modal genérico ---------- */
   M.modal = function (titulo, cuerpo, botones) {
@@ -429,6 +547,22 @@
       });
     });
   }
+
+  /* ---------- Tablas que se vuelven tarjetas en el celular: cada celda lleva el nombre de su columna ---------- */
+  function etiquetarTablas() {
+    document.querySelectorAll('.tabla table').forEach(t => {
+      const ths = Array.from(t.querySelectorAll('thead th')).map(th => th.textContent.trim());
+      t.querySelectorAll('tbody tr').forEach(tr => {
+        Array.from(tr.children).forEach((td, i) => { if (!td.hasAttribute('data-label') && !td.hasAttribute('colspan')) td.setAttribute('data-label', ths[i] || ''); });
+      });
+    });
+  }
+  let pendienteEtiquetas = false;
+  new MutationObserver(() => {
+    if (pendienteEtiquetas) return;
+    pendienteEtiquetas = true;
+    requestAnimationFrame(() => { pendienteEtiquetas = false; etiquetarTablas(); });
+  }).observe(document.documentElement, { childList: true, subtree: true });
 
   /* ---------- Arranque ---------- */
   async function iniciar() {

@@ -1,28 +1,37 @@
-/* Metis · docente.js · Ambiente del docente: versiones del curso, links de registro y personas. */
+/* Metis · docente.js (GitHub, interfaz) · Ambiente del docente: clase de hoy, versiones, sesiones, registro y personas. */
 (function () {
   'use strict';
   const M = window.M, esc = M.esc, $ = M.$;
-  const D = window.Docente = { versiones: [], versionId: null, pestana: 'versiones', personas: [] };
+  const D = window.Docente = { versiones: [], versionId: null, pestana: 'hoy', personas: [] };
 
-  D.montar = async function (c) {
+  const PESTANAS = [['hoy', 'Clase de hoy'], ['versiones', 'Versiones del curso'], ['sesiones', 'Sesiones'], ['registro', 'Links de registro'], ['personas', 'Personas']];
+
+  /** Punto de entrada desde el enrutador (#d/pestaña). Monta el ambiente la primera vez y luego solo cambia de pestaña. */
+  D.ir = async function (c, tab) {
+    if (D.c !== c || !$('#d-tabs')) await montar(c);
+    tab = PESTANAS.some(t => t[0] === tab) ? tab : (PESTANAS.some(t => t[0] === D.pestana) ? D.pestana : 'hoy');
+    // La dirección siempre muestra la pestaña, para que Atrás y recargar funcionen bien.
+    if (location.hash !== '#d/' + tab) history.replaceState(null, '', location.pathname + '#d/' + tab);
+    await irA(tab, true);
+  };
+
+  async function montar(c) {
     D.c = c;
-    try { D.pestana = localStorage.getItem('metis_doc_tab') || 'versiones'; D.versionId = localStorage.getItem('metis_doc_version'); } catch (e) { /* sin almacenamiento */ }
-    c.innerHTML = '<div class="cabecera"><div><h1>Ambiente del docente</h1><p>Versiones del curso, registro de estudiantes y personas.</p></div><div id="d-selector"></div></div>' +
+    try { D.pestana = localStorage.getItem('metis_doc_tab') || 'hoy'; D.versionId = localStorage.getItem('metis_doc_version'); } catch (e) { /* sin almacenamiento */ }
+    c.innerHTML = '<div class="cabecera"><div><h1>Ambiente del docente</h1><p>Clase de hoy, versiones del curso, sesiones, registro y personas.</p></div><div id="d-selector"></div></div>' +
       '<div id="d-contrato"></div><nav class="tabs" id="d-tabs">' +
-      ['versiones:Versiones del curso', 'sesiones:Sesiones', 'registro:Links de registro', 'personas:Personas'].map(t => { const [k, n] = t.split(':'); return '<button type="button" data-tab="' + k + '">' + n + '</button>'; }).join('') +
+      PESTANAS.map(t => '<a href="#d/' + t[0] + '" data-tab="' + t[0] + '">' + t[1] + '</a>').join('') +
       '</nav><section id="d-panel"><div class="vacio">Cargando…</div></section>';
-    $('#d-tabs').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (b) irA(b.dataset.tab); });
     revisarContrato();
     await cargarVersiones();
-    await irA(D.pestana, true);
-  };
+  }
 
   async function revisarContrato() {
     try {
       const est = await M.api('ping');
       const faltan = M.CONTRATO.filter(a => (est.acciones || []).indexOf(a) < 0);
       if (faltan.length) M.msg('#d-contrato', 'El servicio no tiene estas acciones que usa la página: ' + faltan.join(', ') + '. Actualiza los archivos de Apps Script y publica una nueva versión.', 'mal');
-      else if (est.version !== M.version) M.msg('#d-contrato', 'La página es la versión ' + M.version + ' y el servicio la ' + est.version + '. Conviene que coincidan.', 'aviso');
+      else if (String(est.version).split('.').slice(0, 2).join('.') !== String(M.version).split('.').slice(0, 2).join('.')) M.msg('#d-contrato', 'La página es la versión ' + M.version + ' y el servicio la ' + est.version + '. Conviene que coincidan.', 'aviso');
     } catch (e) { M.msg('#d-contrato', 'No se pudo revisar el servicio: ' + e.message, 'mal'); }
   }
 
@@ -44,15 +53,103 @@
   function recordar() { try { localStorage.setItem('metis_doc_tab', D.pestana); if (D.versionId) localStorage.setItem('metis_doc_version', D.versionId); } catch (e) { /* nada */ } }
   function versionActual() { return D.versiones.find(v => v.id === D.versionId); }
 
-  /** Cambia de pestaña. Muestra el velo de carga salvo cuando ya hay uno activo (sinVelo). */
+  /** Pinta una pestaña. Muestra el velo de carga salvo cuando ya hay uno activo (sinVelo). */
   function irA(tab, sinVelo) {
     if (!sinVelo) return M.conVelo(() => irA(tab, true));
-    if (['versiones', 'sesiones', 'registro', 'personas'].indexOf(tab) < 0) tab = 'versiones';
+    M.limpiarRelojes();
+    if (!PESTANAS.some(t => t[0] === tab)) tab = 'hoy';
     D.pestana = tab; recordar();
-    document.querySelectorAll('#d-tabs button').forEach(b => b.classList.toggle('activo', b.dataset.tab === tab));
+    document.querySelectorAll('#d-tabs [data-tab]').forEach(b => b.classList.toggle('activo', b.dataset.tab === tab));
     const p = $('#d-panel');
-    if (tab !== 'versiones' && !D.versionId) { p.innerHTML = '<div class="tarjeta"><h2 style="font-size:1.1rem">Primero crea una versión del curso</h2><p style="margin:0">Las sesiones, los links de registro y las personas pertenecen a una versión.</p><div><button class="btn p" type="button" id="d-ir-v">Ir a versiones</button></div></div>'; $('#d-ir-v').onclick = () => irA('versiones'); return; }
-    return Promise.resolve(({ versiones: panelVersiones, sesiones: panelSesiones, registro: panelRegistro, personas: panelPersonas })[tab](p));
+    if (tab !== 'versiones' && !D.versionId) { p.innerHTML = '<div class="tarjeta" style="margin-top:16px"><h2 style="font-size:1.1rem">Primero crea una versión del curso</h2><p style="margin:0">Las sesiones, los links de registro y las personas pertenecen a una versión.</p><div><a class="btn p" href="#d/versiones">Ir a versiones</a></div></div>'; return; }
+    return Promise.resolve(({ hoy: panelHoy, versiones: panelVersiones, sesiones: panelSesiones, registro: panelRegistro, personas: panelPersonas })[tab](p));
+  }
+
+  /* ---------- Clase de hoy: horario, reloj y alertas de lo que corresponde hacer ---------- */
+  const CONTROLES_BASE = [2, 5, 8]; // sesiones con control de lectura en la planificación de 12
+
+  async function panelHoy(p) {
+    const v = versionActual();
+    let r;
+    try { r = await M.api('listarSesiones', { version_id: v.id }); }
+    catch (e) { p.innerHTML = '<div class="msg mal" style="margin-top:16px">' + esc(e.message) + '</div>'; return; }
+    D.sesiones = r.sesiones;
+    const S = window.Sesiones, hoy = S.hoy();
+    const conFecha = r.sesiones.filter(s => s.fecha).sort((a, b) => (a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : a.numero - b.numero));
+    const s = conFecha.find(x => x.fecha === hoy);
+    if (!s) {
+      const prox = conFecha.find(x => x.fecha > hoy);
+      p.innerHTML = '<div class="tarjeta" style="margin-top:16px"><h2>Hoy no hay clase</h2>' +
+        (!r.sesiones.length ? '<p class="sub">Esta versión aún no tiene sesiones. Créalas en la pestaña Sesiones.</p><div><a class="btn p" href="#d/sesiones">Ir a sesiones</a></div>'
+          : prox ? '<p class="sub">La próxima es la <b>sesión ' + prox.numero + ' · ' + esc(prox.titulo) + '</b>, el ' + esc(M.fechaLarga(prox.fecha)) + (S.horaDe(prox, v) ? ' a las ' + esc(S.horaDe(prox, v)) : '') + '. Estado: ' + S.chipEstado(prox.estado) + '</p>' +
+            '<p class="sub">Antes de esa clase: publica los materiales y deja la sesión visible para que los estudiantes vean objetivos y ruta.</p><div><a class="btn s" href="#d/sesiones">Ir a sesiones</a></div>'
+          : '<p class="sub">Ninguna sesión tiene fecha cargada. Agrega las fechas en Sesiones, con el botón Editar de cada una, para que este panel te acompañe durante la clase.</p><div><a class="btn s" href="#d/sesiones">Ir a sesiones</a></div>') + '</div>';
+      return;
+    }
+    const pintar = () => { if ($('#h-clase')) $('#h-clase').innerHTML = claseHoy(s, v); enlazarHoy(p, s); };
+    p.innerHTML = '<div id="h-msg"></div><div id="h-clase" style="margin-top:16px"></div>';
+    pintar();
+    M.relojes.push(setInterval(() => { if (!$('#h-clase')) { M.limpiarRelojes(); return; } pintar(); }, 30000));
+  }
+
+  function claseHoy(s, v) {
+    const S = window.Sesiones, e = S.estadoAhora(s, v), r = e.r;
+    const fase = e.fase === 'en_curso' ? e.actual.clave : e.fase === 'antes' ? 'inicio' : e.fase === 'terminada' ? 'despues' : '';
+    const orden = ['inicio', 'desarrollo', 'defensa', 'cierre', 'despues'];
+    const des = r.lista.find(m => m.clave === 'desarrollo');
+    const recreo = des && des.recreo && r.inicio != null ? S.aHora(r.inicio + des.desde + Math.round(des.min / 10) * 5) : '';
+    const conControl = Number(v.sesiones) === 12 && CONTROLES_BASE.indexOf(s.numero) >= 0;
+    const items = [
+      { m: 'inicio', t: 'Abre la sesión para que los estudiantes puedan trabajar', hecho: s.estado === 'abierta' || s.estado === 'cerrada', accion: s.estado !== 'abierta' && s.estado !== 'cerrada' ? 'estado:abierta' : '', btn: 'Abrir sesión' },
+      { m: 'inicio', t: 'Publica los materiales de la sesión', hecho: s.materiales_visibles, accion: !s.materiales_visibles ? 'apertura:materiales_visibles' : '', btn: 'Publicar materiales' },
+      { m: 'inicio', t: 'Toma la asistencia', nota: 'El código de asistencia llega en la etapa 3.' },
+      conControl ? { m: 'inicio', t: 'Abre el control de lectura', hecho: s.control_abierto, accion: !s.control_abierto ? 'apertura:control_abierto' : '', btn: 'Abrir control' } : null,
+      { m: 'inicio', t: 'Presenta los objetivos: "En esta sesión aprenderás a…"' },
+      { m: 'desarrollo', t: 'Abre la entrega del trabajo de la sesión', hecho: s.entrega_abierta, accion: !s.entrega_abierta ? 'apertura:entrega_abierta' : '', btn: 'Abrir entrega' },
+      conControl ? { m: 'desarrollo', t: 'Cierra el control de lectura antes del primer taller', hecho: !s.control_abierto, accion: s.control_abierto ? 'cerrar:control_abierto' : '', btn: 'Cerrar control' } : null,
+      des && des.recreo ? { m: 'desarrollo', t: 'Recreo de ' + des.recreo + ' minutos' + (recreo ? ', cerca de las ' + recreo : '') + ', entre los dos talleres' } : null,
+      s.defensa ? { m: 'defensa', t: 'Sortea cinco proyectos para la defensa relámpago', nota: 'El sorteo automático llega en la etapa 4. Los comentarios críticos se hacen en voz alta, en la sala.' } : null,
+      { m: 'cierre', t: 'Pide la actividad de cierre: qué aprendió cada uno, con evidencia de su proyecto' },
+      { m: 'cierre', t: 'Recuerda el plazo: hasta las 23:59 de hoy, solo para quienes asistieron' },
+      { m: 'despues', t: 'Mañana, cuando venza el plazo, cierra la sesión', hecho: s.estado === 'cerrada', accion: s.estado !== 'cerrada' ? 'estado:cerrada' : '', btn: 'Marcar como cerrada' }
+    ].filter(Boolean);
+    const titulos = { inicio: 'Inicio', desarrollo: 'Desarrollo', defensa: 'Defensa relámpago', cierre: 'Cierre', despues: 'Después de la clase' };
+    const horaDe = k => { const m = r.lista.find(x => x.clave === k); return m && m.horaDesde ? m.horaDesde : k === 'despues' && r.fin != null ? S.aHora(r.fin) : ''; };
+    const grupos = orden.filter(k => items.some(i => i.m === k));
+    const ahora = S.aHora(S.ahoraMin());
+    const linea = e.fase === 'antes' ? 'La clase empieza a las <b>' + S.aHora(r.inicio) + '</b>, en <b>' + S.duracion(e.faltan) + '</b>.'
+      : e.fase === 'en_curso' ? 'Ahora: <b>' + esc(e.actual.titulo) + '</b> · quedan <b>' + S.duracion(e.quedanMomento) + '</b> · término a las <b>' + S.aHora(r.fin) + '</b>.'
+      : e.fase === 'terminada' ? 'La clase terminó. La entrega sigue abierta hasta las <b>23:59</b>.' : 'Esta sesión no tiene hora de inicio. Agrégala en la versión o en la sesión.';
+    return '<div class="tarjeta"><div class="cabecera" style="margin:0"><div><span class="lema" style="color:var(--naranja-t)">Clase de hoy</span><h2>Sesión ' + s.numero + ' · ' + esc(s.titulo) + '</h2>' +
+      '<p class="sub" style="margin:0">' + esc([M.fechaLarga(s.fecha), r.inicio != null ? S.aHora(r.inicio) + ' a ' + S.aHora(r.fin) : ''].filter(Boolean).join(' · ')) + '</p></div>' + S.chipEstado(s.estado) + '</div>' +
+      '<div class="reloj ' + e.fase + '"><span class="hora-actual">' + ahora + '</span><span>' + linea + '</span></div>' +
+      '<div class="alertas">' + grupos.map(k => {
+        const idx = orden.indexOf(k), actual = orden.indexOf(fase);
+        const cls = !fase ? '' : idx === actual ? 'ahora' : idx < actual ? 'pasado' : 'futuro';
+        return '<section class="grupo ' + cls + '"><h3><span>' + titulos[k] + '</span>' + (horaDe(k) ? '<small>' + horaDe(k) + '</small>' : '') + (cls === 'ahora' ? '<em>Ahora</em>' : '') + '</h3><ul>' +
+          items.filter(i => i.m === k).map(i => {
+            const est = i.hecho ? 'hecho' : (i.accion && cls === 'pasado') ? 'atrasado' : i.accion ? 'pendiente' : 'info';
+            return '<li class="' + est + '"><span class="marca-a" aria-hidden="true">' + (est === 'hecho' ? '✓' : est === 'atrasado' ? '!' : '•') + '</span><div><b>' + esc(i.t) + '</b>' + (i.nota ? '<small>' + esc(i.nota) + '</small>' : '') + '</div>' +
+              (i.accion ? '<button class="btn ' + (est === 'atrasado' || cls === 'ahora' ? 'p' : 's') + ' peq" type="button" data-accion="' + i.accion + '">' + esc(i.btn) + '</button>' : '') + '</li>';
+          }).join('') + '</ul></section>';
+      }).join('') + '</div>' +
+      '<div class="acciones" style="margin-top:4px"><button class="btn t peq" type="button" data-previa-hoy>Ver como estudiante</button><a class="btn t peq" href="#d/sesiones">Todas las sesiones</a></div></div>';
+  }
+
+  function enlazarHoy(p, s) {
+    p.querySelectorAll('[data-accion]').forEach(b => {
+      b.onclick = async () => {
+        const [tipo, campo] = b.dataset.accion.split(':');
+        await M.ocupado(b, () => M.conVelo(async () => {
+          try {
+            if (tipo === 'estado') await M.api('cambiarEstadoSesiones', { ids: [s.id], estado: campo });
+            else await M.api('cambiarAperturaSesion', { sesion_id: s.id, campo: campo, valor: tipo === 'apertura' });
+            await irA('hoy', true);
+          } catch (e) { M.msg('#h-msg', e.message, 'mal'); window.scrollTo(0, 0); }
+        }));
+      };
+    });
+    const pv = p.querySelector('[data-previa-hoy]'); if (pv) pv.onclick = () => M.conVelo(() => previaSesion(s.id));
   }
 
   /* ---------- Versiones ---------- */
@@ -61,7 +158,7 @@
       (D.versiones.length ? '<div class="tarjetas">' + D.versiones.map(v =>
         '<article class="tarjeta"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div><h3 style="font-size:1.05rem">' + esc(v.asignatura) + '</h3><small style="color:var(--pizarra)">' + esc([v.institucion, v.escuela].filter(Boolean).join(' · ')) + '</small></div>' +
         '<span class="chip ' + (v.estado === 'archivada' ? 'gris' : 'ok') + '">' + (v.estado === 'archivada' ? 'Archivada' : 'Activa') + '</span></div>' +
-        '<div class="datos"><div class="dato"><span>Periodo</span><b>' + esc([v.periodo, v.anio].filter(Boolean).join(' ')) + '</b></div><div class="dato"><span>Sesiones</span><b>' + v.sesiones + ' × ' + v.minutos + ' min</b></div>' +
+        '<div class="datos"><div class="dato"><span>Periodo</span><b>' + esc([v.periodo, v.anio].filter(Boolean).join(' ')) + '</b></div><div class="dato"><span>Sesiones</span><b>' + v.sesiones + ' × ' + v.minutos + ' min' + (v.hora_inicio ? ' · ' + esc(v.hora_inicio) : '') + '</b></div>' +
         '<div class="dato"><span>Estudiantes</span><b>' + v.estudiantes + '</b></div><div class="dato"><span>Observadores</span><b>' + v.observadores + '</b></div></div>' +
         '<div><button class="btn s peq" type="button" data-editar="' + esc(v.id) + '">Editar</button></div></article>').join('') + '</div>'
         : '<div class="tarjeta vacio">Aún no hay versiones. Crea la primera con el botón Nueva versión.</div>');
@@ -70,19 +167,19 @@
   }
 
   function formVersion(v) {
-    v = v || { sesiones: 12, sesiones_semana: 3, minutos: 180, asistencia_min: 80, tolerancia_min: 15, defensas_sesion: 5, exigencia: 60, estado: 'activa', asignatura: 'Artes Digitales: IA Aplicada a la Administración y la Economía', anio: String(new Date().getFullYear() + 1) };
+    v = v || { sesiones: 12, sesiones_semana: 3, minutos: 165, hora_inicio: '18:50', asistencia_min: 80, tolerancia_min: 15, defensas_sesion: 5, exigencia: 60, estado: 'activa', asignatura: 'Artes Digitales: IA Aplicada a la Administración y la Economía', anio: String(new Date().getFullYear() + 1) };
     const c = (id, t, tipo, ayuda) => '<div class="campo"><label for="v-' + id + '">' + t + '</label><input type="' + (tipo || 'text') + '" id="v-' + id + '" value="' + esc(v[id] == null ? '' : v[id]) + '">' + (ayuda ? '<span class="ayuda">' + ayuda + '</span>' : '') + '</div>';
     const m = M.modal(v.id ? 'Editar versión' : 'Nueva versión del curso',
       '<fieldset><legend>Institución</legend><div class="fila">' + c('institucion', 'Institución *') + c('escuela', 'Escuela o facultad') + '</div>' + c('logo_url', 'Logo de la institución', 'url', 'Dirección https de la imagen. Opcional.') + '</fieldset>' +
       '<fieldset><legend>Asignatura</legend>' + c('asignatura', 'Nombre de la asignatura *') + '<div class="fila">' + c('codigo', 'Código') + c('periodo', 'Periodo', 'text', 'Ejemplo: Verano') + c('anio', 'Año *', 'number') + c('fecha_inicio', 'Fecha de inicio', 'date') + '</div></fieldset>' +
-      '<fieldset><legend>Estructura</legend><div class="fila">' + c('sesiones', 'Sesiones', 'number') + c('sesiones_semana', 'Sesiones por semana', 'number') + c('minutos', 'Minutos por sesión', 'number') + '</div></fieldset>' +
+      '<fieldset><legend>Estructura</legend><div class="fila">' + c('sesiones', 'Sesiones', 'number') + c('sesiones_semana', 'Sesiones por semana', 'number') + c('minutos', 'Minutos por sesión', 'number', 'Desde la apertura, incluido el recreo de 15 minutos.') + c('hora_inicio', 'Hora de inicio habitual', 'text', 'Formato 18:50. Cada sesión puede tener otra.') + '</div></fieldset>' +
       '<fieldset><legend>Reglas</legend><div class="fila">' + c('asistencia_min', 'Asistencia mínima (%)', 'number') + c('tolerancia_min', 'Tolerancia de entrega (min)', 'number') + c('defensas_sesion', 'Defensas por sesión', 'number') + c('exigencia', 'Exigencia (%)', 'number') + '</div>' +
       c('whatsapp', 'Link del grupo de WhatsApp', 'url', 'Opcional.') +
       '<div class="campo"><label for="v-estado">Estado</label><select id="v-estado"><option value="activa"' + (v.estado !== 'archivada' ? ' selected' : '') + '>Activa</option><option value="archivada"' + (v.estado === 'archivada' ? ' selected' : '') + '>Archivada</option></select></div></fieldset><div id="v-msg"></div>',
       '<button class="btn p" type="button" id="v-guardar">Guardar versión</button>');
     $('#v-guardar', m.el).onclick = async ev => {
       const d = { id: v.id };
-      ['institucion', 'escuela', 'logo_url', 'asignatura', 'codigo', 'periodo', 'anio', 'fecha_inicio', 'sesiones', 'sesiones_semana', 'minutos', 'asistencia_min', 'tolerancia_min', 'defensas_sesion', 'exigencia', 'whatsapp', 'estado']
+      ['institucion', 'escuela', 'logo_url', 'asignatura', 'codigo', 'periodo', 'anio', 'fecha_inicio', 'sesiones', 'sesiones_semana', 'minutos', 'hora_inicio', 'asistencia_min', 'tolerancia_min', 'defensas_sesion', 'exigencia', 'whatsapp', 'estado']
         .forEach(k => { d[k] = $('#v-' + k, m.el).value; });
       await M.ocupado(ev.currentTarget, async () => {
         try { const g = await M.api('guardarVersion', d); D.versionId = g.id; recordar(); m.cerrar(); await M.conVelo(async () => { await cargarVersiones(); await irA('versiones', true); }); }
@@ -141,26 +238,24 @@
   async function previaSesion(id) {
     const v = versionActual();
     const s = await M.api('verSesionDocente', { sesion_id: id });
-    const m = M.modal('Vista del estudiante', window.Sesiones.vista(Object.assign({}, s, { materiales_visibles: true }), v.minutos));
+    const m = M.modal('Vista del estudiante', window.Sesiones.vista(Object.assign({}, s, { materiales_visibles: true }), v));
     m.el.querySelector('.modal').classList.add('ancho');
   }
 
   async function editarSesion(id) {
     const v = versionActual();
     const s = await M.api('verSesionDocente', { sesion_id: id });
-    const base = window.Sesiones.calcularRuta(v.minutos, s.ruta);
-    const minDe = k => (base.find(b => b.momento === k) || {}).minutos;
     const m = M.modal('Sesión ' + s.numero + ' · Editar',
       '<fieldset><legend>Datos</legend><div class="campo"><label for="e-titulo">Título *</label><input type="text" id="e-titulo" value="' + esc(s.titulo) + '"></div>' +
       '<div class="fila"><div class="campo"><label for="e-unidad">Unidad</label><input type="text" id="e-unidad" value="' + esc(s.unidad || '') + '"></div>' +
       '<div class="campo"><label for="e-fecha">Fecha</label><input type="date" id="e-fecha" value="' + esc(s.fecha || '') + '"></div>' +
-      '<div class="campo"><label for="e-hora">Hora de inicio</label><input type="text" id="e-hora" placeholder="18:30" value="' + esc(s.hora || '') + '"></div></div>' +
+      '<div class="campo"><label for="e-hora">Hora de inicio</label><input type="text" id="e-hora" placeholder="' + esc(v.hora_inicio || '18:50') + '" value="' + esc(s.hora || '') + '"><span class="ayuda">Vacía: usa la hora de la versión' + (v.hora_inicio ? ' (' + esc(v.hora_inicio) + ')' : '') + '.</span></div></div>' +
       '<label class="check"><input type="checkbox" id="e-defensa"' + (s.defensa ? ' checked' : '') + '><span>Esta sesión tiene defensa relámpago (15 minutos antes del cierre)</span></label></fieldset>' +
       '<fieldset><legend>Objetivos</legend><div class="campo"><label for="e-obj">En esta sesión aprenderás a…</label><textarea id="e-obj" style="font-family:var(--sans);font-size:14px;min-height:110px">' + esc((s.objetivos || []).join('\n')) + '</textarea>' +
       '<span class="ayuda">Un objetivo por línea, comenzando con un verbo en infinitivo. Máximo seis. Reaparecen en el cierre para la autoevaluación.</span></div></fieldset>' +
-      '<fieldset><legend>Ruta de la sesión · ' + v.minutos + ' minutos</legend><div id="e-ruta">' + s.ruta.map((b, i) =>
-        '<div class="bloque-ed" data-momento="' + esc(b.momento) + '"><input type="text" data-titulo value="' + esc(b.titulo) + '"><textarea data-desc style="font-family:var(--sans);font-size:13px;min-height:56px">' + esc(b.descripcion || '') + '</textarea><span class="min">' + (minDe(b.momento) != null ? minDe(b.momento) + ' min' : '') + '</span></div>').join('') +
-      '</div><span class="ayuda">Los minutos se calculan solos según la duración de la sesión. Se recalculan al guardar.</span></fieldset>' +
+      '<fieldset><legend>Ruta de la sesión · unos ' + v.minutos + ' minutos</legend><div id="e-ruta">' + s.ruta.map((b, i) =>
+        '<div class="bloque-ed" data-momento="' + esc(b.momento) + '"><input type="text" data-titulo value="' + esc(b.titulo) + '"><textarea data-desc style="font-family:var(--sans);font-size:13px;min-height:56px">' + esc(b.descripcion || '') + '</textarea></div>').join('') +
+      '</div><span class="ayuda">El estudiante ve cuatro momentos con hora de reloj: inicio, desarrollo con recreo de 15 minutos, defensa relámpago si corresponde, y cierre. Los horarios se calculan solos y son aproximados.</span></fieldset>' +
       '<fieldset><legend>Materiales</legend><div id="e-mats" style="display:grid;gap:8px"></div><div><button class="btn s peq" type="button" id="e-mat-mas">Agregar material</button></div>' +
       '<span class="ayuda">Cuaderno y podcast en Drive, compartidos como "Cualquier persona con el enlace". Video en YouTube como "No listado". Pega la dirección completa.</span></fieldset><div id="e-msg"></div>',
       '<button class="btn s" type="button" data-cerrar>Cancelar</button><button class="btn p" type="button" id="e-ok">Guardar sesión</button>');
