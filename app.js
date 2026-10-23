@@ -2,14 +2,15 @@
 (function () {
   'use strict';
   const CFG = window.METIS_CONFIG || {};
-  const VERSION_INTERFAZ = '0.4.0';
+  const VERSION_INTERFAZ = '0.5.0';
 
   // Acciones que esta interfaz usa. Se comparan con las del servicio para detectar desajustes.
   const CONTRATO = ['ping', 'loginGoogle', 'loginClave', 'infoRegistro', 'registrarConGoogle', 'registrarConClave',
     'solicitarRecuperacion', 'restablecerClave', 'miSesion', 'cerrarSesion', 'cambiarClave', 'guardarMiFicha',
     'listarVersiones', 'guardarVersion', 'listarLinks', 'crearLink', 'desactivarLink', 'listarPersonas', 'crearPersona',
     'actualizarPersona', 'reenviarAcceso', 'cambiarEstadoInscripcion', 'cargaMasiva', 'verFoto',
-    'misSesiones', 'verSesion', 'listarSesiones', 'generarSesiones', 'verSesionDocente', 'guardarSesion', 'cambiarEstadoSesiones', 'cambiarAperturaSesion'];
+    'misSesiones', 'verSesion', 'listarSesiones', 'generarSesiones', 'verSesionDocente', 'guardarSesion', 'cambiarEstadoSesiones', 'cambiarAperturaSesion',
+    'registrarAsistencia', 'guardarRespuesta', 'subirArchivo', 'guardarTareas', 'codigoAsistencia', 'listarAsistencia', 'marcarAsistencia', 'entregasSesion', 'verRespuesta'];
 
   const M = window.M = { estado: { token: null, sesion: null, versionId: null }, CONTRATO: CONTRATO, ESPERA_MAX_MS: 40000 };
   const app = () => document.getElementById('app');
@@ -429,7 +430,7 @@
     $('#i-hoy').innerHTML = hoy.html;
     if (hoy.sesion && hoy.sesion.fecha === S.hoy()) S.activarReloj(hoy.sesion, v);
     $('#i-pend').innerHTML = '<h2>Pendientes</h2>' + bloquePendientes(ses);
-    $('#i-prog').innerHTML = '<h2>Mi progreso</h2>' + bloqueProgreso(ses, v);
+    $('#i-prog').innerHTML = '<h2>Mi progreso</h2>' + bloqueProgreso(ses, v, obs);
     $('#i-sesiones').innerHTML = S.lista(ses, v);
   }
 
@@ -451,19 +452,23 @@
     };
   }
 
+  const ASISTIO = a => !!(a && ['presente', 'atrasado', 'justificado'].indexOf(a.estado) >= 0);
+
   function bloquePendientes(ses) {
     const hoy = window.Sesiones.hoy(), items = [];
     ses.forEach(s => {
       const ref = 'Sesión ' + s.numero + ' · ' + s.titulo, href = '#sesion/' + s.id;
-      if (s.entrega_abierta) items.push({ c: 'naranja', t: 'Entrega abierta', r: ref, d: s.fecha === hoy ? 'Plazo: hoy hasta las 23:59' : 'Plazo: hasta las 23:59 del día de la clase', href: href });
+      if (s.estado === 'abierta' && s.fecha === hoy && !ASISTIO(s.asistencia)) items.push({ c: 'naranja', t: 'Registra tu asistencia', r: ref, d: 'Con el código que muestra el docente en la sala', href: href });
+      if (s.estado === 'abierta' && ASISTIO(s.asistencia) && s.fecha >= hoy && s.n_enviadas < s.n_tareas)
+        items.push({ c: 'naranja', t: 'Tareas por enviar: ' + (s.n_tareas - s.n_enviadas) + ' de ' + s.n_tareas, r: ref, d: (s.cierre_enviado ? '' : 'Incluye la actividad de cierre · ') + 'Plazo: ' + (s.fecha === hoy ? 'hoy' : M.fechaCorta(s.fecha)) + ' hasta las 23:59', href: href });
       if (s.control_abierto) items.push({ c: 'cobalto', t: 'Control de lectura disponible', r: ref, d: 'Respóndelo durante la clase', href: href });
       if (s.materiales_visibles && s.n_materiales && (!s.fecha || s.fecha >= hoy)) items.push({ c: 'turquesa', t: 'Materiales para revisar', r: ref, d: s.n_materiales + (s.n_materiales === 1 ? ' material' : ' materiales'), href: href });
     });
-    if (!items.length) return '<p class="sub">No tienes pendientes por ahora. Las entregas y controles aparecerán aquí cuando el docente los abra.</p>';
+    if (!items.length) return '<p class="sub">No tienes pendientes por ahora. Las tareas y controles aparecerán aquí cuando el docente los abra.</p>';
     return '<ul class="pendientes">' + items.map(i => '<li class="' + i.c + '"><a href="' + esc(i.href) + '"><b>' + esc(i.t) + '</b><span>' + esc(i.r) + '</span><small>' + esc(i.d) + '</small></a></li>').join('') + '</ul>';
   }
 
-  function bloqueProgreso(ses, v) {
+  function bloqueProgreso(ses, v, obs) {
     const hoy = window.Sesiones.hoy();
     const total = Number(v.sesiones) || ses.length || 12;
     const hecha = s => s.estado === 'cerrada' || (s.fecha && s.fecha < hoy);
@@ -474,7 +479,18 @@
     const lograda = n => ses.some(s => s.numero === n && hecha(s));
     return '<div class="progreso"><div class="barra-p"><i style="width:' + pct + '%"></i></div><p><b>' + hechas + ' de ' + total + '</b> sesiones realizadas</p></div>' +
       '<ol class="hitos">' + hitos.map(h => '<li class="' + (lograda(h[2]) ? 'hecho' : '') + '"><span class="h">' + h[0] + '</span><b>' + h[1] + '</b><small>Sesión ' + h[2] + '</small></li>').join('') + '</ol>' +
-      '<p class="sub" style="font-size:.82rem;margin:0">La asistencia y las calificaciones se mostrarán aquí cuando se registren.</p>';
+      bloqueAsistencia(ses, v, obs) +
+      '<p class="sub" style="font-size:.82rem;margin:0">Las calificaciones se mostrarán aquí cuando se publiquen.</p>';
+  }
+
+  function bloqueAsistencia(ses, v, obs) {
+    const hoy = window.Sesiones.hoy();
+    const pasadas = ses.filter(s => s.fecha && s.fecha <= hoy && (s.estado === 'abierta' || s.estado === 'cerrada'));
+    if (obs || !pasadas.length) return '';
+    const con = pasadas.filter(s => ASISTIO(s.asistencia)).length;
+    const pct = Math.round(100 * con / pasadas.length);
+    const min = Number(v.asistencia_min) || 0;
+    return '<div class="asis-resumen' + (pct < min ? ' bajo' : '') + '"><b>Asistencia: ' + con + ' de ' + pasadas.length + ' sesiones (' + pct + '%)</b><small>Mínimo del curso: ' + min + '%</small></div>';
   }
 
   async function abrirSesion(c, id) {
@@ -483,6 +499,7 @@
       const s = await M.api('verSesion', { sesion_id: id });
       if (!$('#contenido')) return;
       c.innerHTML = window.Sesiones.vista(s, s.version, { volver: true });
+      if (window.Tareas) window.Tareas.montar($('#tareas-sesion'), s);
       if (s.fecha === window.Sesiones.hoy()) window.Sesiones.activarReloj(s, s.version);
     } catch (e) { c.innerHTML = '<div class="msg mal">' + esc(e.message) + '</div><div><a class="btn s" href="#inicio">Volver al inicio</a></div>'; }
   }

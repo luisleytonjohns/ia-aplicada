@@ -241,6 +241,60 @@ a.sesion-card{text-decoration:none}
 .alertas li.pendiente .marca-a{background:#E4EAFB;color:var(--cobalto-osc)}
 .acciones{display:flex;gap:6px;flex-wrap:wrap}
 
+/* Tareas de la sesión (etapa 3) */
+.tareas{gap:16px}
+.tarea{border:1px solid var(--borde);border-radius:12px;padding:16px;display:grid;gap:12px;background:#FBFAF7}
+.tarea header{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}
+.tarea header .lema{color:var(--pizarra);font-size:.7rem}
+.tarea h3{font-size:1.02rem;font-weight:600;margin-top:2px}
+.tarea .consigna{white-space:pre-wrap;font-size:.94rem;background:var(--sup);border-left:4px solid var(--cobalto);border-radius:6px;padding:10px 12px}
+.tarea .criterio{margin:0;font-size:.84rem;color:var(--pizarra)}
+.tarea footer{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.tarea footer small{color:var(--pizarra)}
+.editor{display:grid;gap:12px}
+.editor textarea{font:15px/1.5 var(--sans);min-height:0}
+.editor textarea.mono{font:13px/1.5 var(--mono)}
+.editor textarea:disabled,.editor input:disabled{background:#F4F2EC;color:var(--noche);opacity:1}
+.tabla-ed{overflow-x:auto;border:1px solid var(--borde);border-radius:10px;background:var(--sup)}
+.tabla-ed table{min-width:480px}
+.tabla-ed th{position:static}
+.tabla-ed td{padding:4px 6px}
+.tabla-ed td input{padding:7px 8px;font-size:.88rem}
+.tabla-ed td.quitar{width:40px}
+.bench{display:grid;gap:10px}
+.bench-sol{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;align-items:end;border:1px solid var(--borde);border-radius:10px;padding:10px;background:var(--sup)}
+.bench-sol label{display:grid;gap:4px;font:600 .74rem/1.2 var(--disp);color:var(--pizarra)}
+.bench-sol input{padding:7px 8px;font-size:.88rem}
+.bench-sol .btn{justify-self:start}
+.toulmin{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.autoeval{display:grid;gap:10px}
+.ae-fila{display:grid;gap:6px;padding:10px;border:1px solid var(--borde);border-radius:10px;background:var(--sup)}
+.ae-fila p{margin:0;font-size:.92rem}
+.diagrama{overflow-x:auto;background:var(--sup);border-radius:10px}
+.diagrama:not(:empty){border:1px solid var(--borde);padding:12px}
+.diagrama svg{max-width:100%;height:auto}
+.asis-form{display:grid;gap:10px;border:2px solid var(--naranja);border-radius:12px;padding:14px;background:#FFF6F1}
+.asis-campos{display:flex;gap:8px;flex-wrap:wrap}
+.asis-campos input{width:140px;font:600 1.5rem/1 var(--mono);letter-spacing:.3em;text-align:center}
+.asis-ok{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.asis-ok small{color:var(--pizarra)}
+.asis-resumen{display:grid;gap:2px;font-size:.9rem;padding:8px 10px;border-radius:8px;background:#E2F4F1}
+.asis-resumen.bajo{background:#FBEDE6}.asis-resumen small{color:var(--pizarra)}
+.tarea-ed{border:1px solid var(--borde);border-radius:12px;padding:14px;display:grid;gap:10px;background:var(--sup)}
+.tarea-ed textarea{font:14px/1.5 var(--sans);min-height:0}
+.proyector{display:grid;gap:14px;justify-items:center;text-align:center;padding:10px 0}
+.proyector p{margin:0;font:500 1.1rem/1.4 var(--disp)}
+.codigo-grande{font:700 clamp(4rem,16vw,10rem)/1 var(--mono);color:var(--noche);letter-spacing:.06em}
+.pc-barra{width:min(520px,100%);height:10px;border-radius:5px;background:var(--suave);overflow:hidden}
+.pc-barra i{display:block;height:100%;background:var(--cobalto);transition:width .5s linear}
+.modal.proyectar:fullscreen{max-width:none;border-radius:0;display:grid;align-content:center}
+.ent{display:inline-block;font:600 .76rem/1 var(--mono);padding:5px 7px;border-radius:6px;border:0;white-space:nowrap}
+button.ent{cursor:pointer}
+.ent.clase{background:#E4EFEA;color:var(--ok)}.ent.despues{background:#FBEDE6;color:var(--naranja-t)}
+.ent.borrador{background:#E9EBEC;color:#4A5560}.ent.vacia{color:var(--pizarra);background:none}
+.leyenda{font-size:.8rem}
+table.entregas td,table.entregas th{text-align:center}table.entregas td:first-child,table.entregas th:first-child{text-align:left}
+@media (max-width:720px){.toulmin{grid-template-columns:1fr}.tarea{padding:12px}}
+
 /* Pantallas pequeñas */
 @media (max-width:860px){.inicio-grid{grid-template-columns:1fr}.inicio-grid .hoy{grid-row:auto}}
 @media (max-width:720px){

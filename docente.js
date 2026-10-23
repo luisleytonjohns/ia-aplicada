@@ -102,14 +102,15 @@
     const items = [
       { m: 'inicio', t: 'Abre la sesión para que los estudiantes puedan trabajar', hecho: s.estado === 'abierta' || s.estado === 'cerrada', accion: s.estado !== 'abierta' && s.estado !== 'cerrada' ? 'estado:abierta' : '', btn: 'Abrir sesión' },
       { m: 'inicio', t: 'Publica los materiales de la sesión', hecho: s.materiales_visibles, accion: !s.materiales_visibles ? 'apertura:materiales_visibles' : '', btn: 'Publicar materiales' },
-      { m: 'inicio', t: 'Toma la asistencia', nota: 'El código de asistencia llega en la etapa 3.' },
+      { m: 'inicio', t: 'Proyecta el código de asistencia', nota: 'Cambia cada minuto. Se puede registrar toda la clase; después de la tolerancia queda como atraso.', ver: 'codigo', btn: 'Mostrar código' },
       conControl ? { m: 'inicio', t: 'Abre el control de lectura', hecho: s.control_abierto, accion: !s.control_abierto ? 'apertura:control_abierto' : '', btn: 'Abrir control' } : null,
       { m: 'inicio', t: 'Presenta los objetivos: "En esta sesión aprenderás a…"' },
       { m: 'desarrollo', t: 'Abre la entrega del trabajo de la sesión', hecho: s.entrega_abierta, accion: !s.entrega_abierta ? 'apertura:entrega_abierta' : '', btn: 'Abrir entrega' },
       conControl ? { m: 'desarrollo', t: 'Cierra el control de lectura antes del primer taller', hecho: !s.control_abierto, accion: s.control_abierto ? 'cerrar:control_abierto' : '', btn: 'Cerrar control' } : null,
       des && des.recreo ? { m: 'desarrollo', t: 'Recreo de ' + des.recreo + ' minutos' + (recreo ? ', cerca de las ' + recreo : '') + ', entre los dos talleres' } : null,
       s.defensa ? { m: 'defensa', t: 'Sortea cinco proyectos para la defensa relámpago', nota: 'El sorteo automático llega en la etapa 4. Los comentarios críticos se hacen en voz alta, en la sala.' } : null,
-      { m: 'cierre', t: 'Pide la actividad de cierre: qué aprendió cada uno, con evidencia de su proyecto' },
+      { m: 'desarrollo', t: 'Revisa quién no ha registrado asistencia y marca a mano los casos especiales', ver: 'lista', btn: 'Lista de asistencia' },
+      { m: 'cierre', t: 'Pide la actividad de cierre: autoevaluación por objetivo, con evidencia de su proyecto', ver: 'entregas', btn: 'Ver entregas' },
       { m: 'cierre', t: 'Recuerda el plazo: hasta las 23:59 de hoy, solo para quienes asistieron' },
       { m: 'despues', t: 'Mañana, cuando venza el plazo, cierra la sesión', hecho: s.estado === 'cerrada', accion: s.estado !== 'cerrada' ? 'estado:cerrada' : '', btn: 'Marcar como cerrada' }
     ].filter(Boolean);
@@ -130,7 +131,8 @@
           items.filter(i => i.m === k).map(i => {
             const est = i.hecho ? 'hecho' : (i.accion && cls === 'pasado') ? 'atrasado' : i.accion ? 'pendiente' : 'info';
             return '<li class="' + est + '"><span class="marca-a" aria-hidden="true">' + (est === 'hecho' ? '✓' : est === 'atrasado' ? '!' : '•') + '</span><div><b>' + esc(i.t) + '</b>' + (i.nota ? '<small>' + esc(i.nota) + '</small>' : '') + '</div>' +
-              (i.accion ? '<button class="btn ' + (est === 'atrasado' || cls === 'ahora' ? 'p' : 's') + ' peq" type="button" data-accion="' + i.accion + '">' + esc(i.btn) + '</button>' : '') + '</li>';
+              (i.accion ? '<button class="btn ' + (est === 'atrasado' || cls === 'ahora' ? 'p' : 's') + ' peq" type="button" data-accion="' + i.accion + '">' + esc(i.btn) + '</button>' : '') +
+              (i.ver ? '<button class="btn ' + (cls === 'ahora' ? 'p' : 's') + ' peq" type="button" data-ver="' + i.ver + '">' + esc(i.btn) + '</button>' : '') + '</li>';
           }).join('') + '</ul></section>';
       }).join('') + '</div>' +
       '<div class="acciones" style="margin-top:4px"><button class="btn t peq" type="button" data-previa-hoy>Ver como estudiante</button><a class="btn t peq" href="#d/sesiones">Todas las sesiones</a></div></div>';
@@ -150,6 +152,79 @@
       };
     });
     const pv = p.querySelector('[data-previa-hoy]'); if (pv) pv.onclick = () => M.conVelo(() => previaSesion(s.id));
+    p.querySelectorAll('[data-ver]').forEach(b => { b.onclick = () => abrirVista(b.dataset.ver, s.id); });
+  }
+
+  function abrirVista(cual, id) {
+    if (cual === 'codigo') return proyectarCodigo(id);
+    if (cual === 'lista') return M.conVelo(() => listaAsistencia(id));
+    if (cual === 'entregas') return M.conVelo(() => verEntregas(id));
+    if (cual === 'tareas') return M.conVelo(() => window.Tareas.editar(id, () => irA(D.pestana)));
+  }
+
+  /* ---------- Código de asistencia para proyectar ---------- */
+  async function proyectarCodigo(id) {
+    let datos;
+    try { datos = await M.conVelo(() => M.api('codigoAsistencia', { sesion_id: id })); }
+    catch (e) { M.modal('Código de asistencia', '<div class="msg mal">' + esc(e.message) + '</div>'); return; }
+    const m = M.modal('Código de asistencia', '<div class="proyector"><p>Ingresa a Metis, abre la sesión y escribe:</p><div class="codigo-grande" id="pc-codigo"></div>' +
+      '<div class="pc-barra"><i id="pc-barra"></i></div><p id="pc-info"></p><button class="btn s peq" type="button" id="pc-pantalla">Pantalla completa</button></div>');
+    m.el.querySelector('.modal').classList.add('ancho', 'proyectar');
+    let vence = Date.now() + datos.segundos * 1000, ultimo = 0;
+    const pintar = () => {
+      $('#pc-codigo', m.el).textContent = datos.codigo.split('').join(' ');
+      $('#pc-info', m.el).innerHTML = '<b>' + datos.registrados + '</b> de ' + datos.inscritos + ' estudiantes registrados';
+    };
+    pintar();
+    const tic = async () => {
+      if (!document.body.contains(m.el)) { clearInterval(intervalo); return; }
+      const resta = Math.max(0, vence - Date.now());
+      $('#pc-barra', m.el).style.width = (resta / 600) + '%';
+      if ((resta === 0 || Date.now() - ultimo > 15000) && !tic.ocupado) {
+        tic.ocupado = true; ultimo = Date.now();
+        try { datos = await M.api('codigoAsistencia', { sesion_id: id }); vence = Date.now() + datos.segundos * 1000; pintar(); } catch (e) { /* se reintenta */ }
+        tic.ocupado = false;
+      }
+    };
+    const intervalo = setInterval(tic, 500); ultimo = Date.now(); tic();
+    $('#pc-pantalla', m.el).onclick = () => { const x = m.el.querySelector('.modal'); if (x.requestFullscreen) x.requestFullscreen().catch(() => {}); };
+  }
+
+  /* ---------- Lista de asistencia con registro manual ---------- */
+  async function listaAsistencia(id) {
+    const d = await M.api('listarAsistencia', { sesion_id: id });
+    const op = (a, v, t) => '<option value="' + v + '"' + ((a ? a.estado : '') === v ? ' selected' : '') + '>' + t + '</option>';
+    const m = M.modal('Asistencia · Sesión ' + d.sesion.numero,
+      (d.estudiantes.length ? '<div class="tabla"><table><thead><tr><th>Estudiante</th><th>Registro</th><th>Estado</th></tr></thead><tbody>' + d.estudiantes.map(x =>
+        '<tr><td><div class="persona">' + (x.foto_mini ? '<img class="foto" src="' + esc(x.foto_mini) + '" alt="">' : '') + '<div><b>' + esc(x.nombre) + '</b><small>' + esc(x.correo) + '</small></div></div></td>' +
+        '<td>' + (x.asistencia ? esc(x.asistencia.hora) + (x.asistencia.via === 'docente' ? ' · a mano' : ' · con código') : '<span class="sub">Sin registro</span>') + '</td>' +
+        '<td><select data-u="' + esc(x.id) + '">' + op(x.asistencia, '', 'Sin registro') + op(x.asistencia, 'presente', 'Presente') + op(x.asistencia, 'atrasado', 'Atrasado') + op(x.asistencia, 'justificado', 'Justificado') + op(x.asistencia, 'ausente', 'Ausente') + '</select></td></tr>').join('') + '</tbody></table></div>'
+        : '<div class="vacio">Aún no hay estudiantes inscritos.</div>') + '<div id="la-msg"></div>');
+    m.el.querySelector('.modal').classList.add('ancho');
+    m.el.querySelectorAll('select[data-u]').forEach(sel => {
+      const previo = sel.value;
+      sel.onchange = async () => {
+        try { await M.api('marcarAsistencia', { sesion_id: id, usuario_id: sel.dataset.u, estado: sel.value }); M.msg($('#la-msg', m.el), 'Asistencia actualizada.', 'ok'); }
+        catch (e) { sel.value = previo; M.msg($('#la-msg', m.el), e.message, 'mal'); }
+      };
+    });
+  }
+
+  /* ---------- Entregas de una sesión ---------- */
+  async function verEntregas(id) {
+    const d = await M.api('entregasSesion', { sesion_id: id });
+    const celda = r => !r ? '<span class="ent vacia">—</span>' : r.estado === 'enviada'
+      ? '<button type="button" class="ent ' + (r.momento === 'despues' ? 'despues' : 'clase') + '" data-r="' + esc(r.id) + '" title="' + (r.momento === 'despues' ? 'Completada después de clase' : 'Enviada en clase') + '">✓ ' + esc(r.actualizado) + '</button>'
+      : '<button type="button" class="ent borrador" data-r="' + esc(r.id) + '" title="Borrador">… ' + esc(r.actualizado) + '</button>';
+    const asis = a => a ? '<span class="chip ' + (a.estado === 'ausente' ? 'mal' : a.estado === 'atrasado' ? 'aviso' : 'ok') + '">' + esc(a.estado) + '</span>' : '<span class="chip gris">Sin registro</span>';
+    const m = M.modal('Entregas · Sesión ' + d.sesion.numero + ' · ' + d.sesion.titulo,
+      '<div class="opciones leyenda"><span class="ent clase">✓ en clase</span><span class="ent despues">✓ después de clase</span><span class="ent borrador">… borrador</span><span class="ent vacia">— sin empezar</span></div>' +
+      (d.estudiantes.length ? '<div class="tabla"><table class="entregas"><thead><tr><th>Estudiante</th><th>Asistencia</th>' + d.tareas.map((t, i) => '<th title="' + esc(t.titulo) + '">' + (t.tipo === 'cierre' ? 'Cierre' : 'T' + (i + 1)) + '</th>').join('') + '</tr></thead><tbody>' +
+        d.estudiantes.map(x => '<tr><td><b>' + esc(x.nombre) + '</b></td><td>' + asis(x.asistencia) + '</td>' + d.tareas.map(t => '<td>' + celda(x.respuestas[t.id]) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>'
+        : '<div class="vacio">Aún no hay estudiantes inscritos.</div>') +
+      '<p class="sub" style="font-size:.82rem">' + d.tareas.map((t, i) => (t.tipo === 'cierre' ? 'Cierre' : 'T' + (i + 1)) + ': ' + esc(t.titulo)).join(' · ') + '</p>');
+    m.el.querySelector('.modal').classList.add('ancho');
+    m.el.querySelectorAll('[data-r]').forEach(b => { b.onclick = () => M.conVelo(() => window.Tareas.verRespuesta(b.dataset.r)); });
   }
 
   /* ---------- Versiones ---------- */
@@ -173,7 +248,7 @@
       '<fieldset><legend>Institución</legend><div class="fila">' + c('institucion', 'Institución *') + c('escuela', 'Escuela o facultad') + '</div>' + c('logo_url', 'Logo de la institución', 'url', 'Dirección https de la imagen. Opcional.') + '</fieldset>' +
       '<fieldset><legend>Asignatura</legend>' + c('asignatura', 'Nombre de la asignatura *') + '<div class="fila">' + c('codigo', 'Código') + c('periodo', 'Periodo', 'text', 'Ejemplo: Verano') + c('anio', 'Año *', 'number') + c('fecha_inicio', 'Fecha de inicio', 'date') + '</div></fieldset>' +
       '<fieldset><legend>Estructura</legend><div class="fila">' + c('sesiones', 'Sesiones', 'number') + c('sesiones_semana', 'Sesiones por semana', 'number') + c('minutos', 'Minutos por sesión', 'number', 'Desde la apertura, incluido el recreo de 15 minutos.') + c('hora_inicio', 'Hora de inicio habitual', 'text', 'Formato 18:50. Cada sesión puede tener otra.') + '</div></fieldset>' +
-      '<fieldset><legend>Reglas</legend><div class="fila">' + c('asistencia_min', 'Asistencia mínima (%)', 'number') + c('tolerancia_min', 'Tolerancia de entrega (min)', 'number') + c('defensas_sesion', 'Defensas por sesión', 'number') + c('exigencia', 'Exigencia (%)', 'number') + '</div>' +
+      '<fieldset><legend>Reglas</legend><div class="fila">' + c('asistencia_min', 'Asistencia mínima (%)', 'number') + c('tolerancia_min', 'Tolerancia de llegada (min)', 'number', 'Después de estos minutos, la asistencia queda como atraso.') + c('defensas_sesion', 'Defensas por sesión', 'number') + c('exigencia', 'Exigencia (%)', 'number') + '</div>' +
       c('whatsapp', 'Link del grupo de WhatsApp', 'url', 'Opcional.') +
       '<div class="campo"><label for="v-estado">Estado</label><select id="v-estado"><option value="activa"' + (v.estado !== 'archivada' ? ' selected' : '') + '>Activa</option><option value="archivada"' + (v.estado === 'archivada' ? ' selected' : '') + '>Archivada</option></select></div></fieldset><div id="v-msg"></div>',
       '<button class="btn p" type="button" id="v-guardar">Guardar versión</button>');
@@ -217,6 +292,7 @@
     }; });
     p.querySelectorAll('[data-editar-sesion]').forEach(b => { b.onclick = () => M.conVelo(() => editarSesion(b.dataset.editarSesion)); });
     p.querySelectorAll('[data-previa]').forEach(b => { b.onclick = () => M.conVelo(() => previaSesion(b.dataset.previa)); });
+    p.querySelectorAll('[data-vista]').forEach(b => { b.onclick = () => abrirVista(b.dataset.vista, b.dataset.id); });
   }
 
   function filaSesion(s) {
@@ -224,7 +300,8 @@
     return '<tr><td><b>' + s.numero + '</b></td><td><b>' + esc(s.titulo) + '</b><br><small style="color:var(--pizarra)">' + esc([s.fecha ? M.fechaCorta(s.fecha) : 'Sin fecha', s.hora, s.unidad, s.n_objetivos + ' objetivos', s.n_materiales + ' materiales', s.defensa ? 'con defensa' : ''].filter(Boolean).join(' · ')) + '</small></td>' +
       '<td><select class="estado" data-id="' + esc(s.id) + '">' + ['oculta', 'visible', 'abierta', 'cerrada'].map(e => '<option value="' + e + '"' + (s.estado === e ? ' selected' : '') + '>' + window.Sesiones.ESTADOS[e][0] + '</option>').join('') + '</select></td>' +
       '<td><div style="display:grid;gap:4px">' + sw('materiales_visibles', 'Materiales') + sw('control_abierto', 'Control de lectura') + sw('entrega_abierta', 'Entrega') + '</div></td>' +
-      '<td><div class="acciones"><button class="btn s peq" type="button" data-editar-sesion="' + esc(s.id) + '">Editar</button><button class="btn t peq" type="button" data-previa="' + esc(s.id) + '">Vista del estudiante</button></div></td></tr>';
+      '<td><div class="acciones"><button class="btn s peq" type="button" data-editar-sesion="' + esc(s.id) + '">Editar</button><button class="btn s peq" type="button" data-vista="tareas" data-id="' + esc(s.id) + '">Tareas</button>' +
+      '<button class="btn t peq" type="button" data-vista="lista" data-id="' + esc(s.id) + '">Asistencia</button><button class="btn t peq" type="button" data-vista="entregas" data-id="' + esc(s.id) + '">Entregas</button><button class="btn t peq" type="button" data-previa="' + esc(s.id) + '">Vista del estudiante</button></div></td></tr>';
   }
 
   async function cambiarEstado(ids, estado, btn) {
@@ -240,6 +317,8 @@
     const s = await M.api('verSesionDocente', { sesion_id: id });
     const m = M.modal('Vista del estudiante', window.Sesiones.vista(Object.assign({}, s, { materiales_visibles: true }), v));
     m.el.querySelector('.modal').classList.add('ancho');
+    const t = m.el.querySelector('#tareas-sesion');
+    if (t && window.Tareas) window.Tareas.montar(t, Object.assign({}, s, { observador: true, respuestas: {}, permisos: { motivo: 'Vista previa: así verá el estudiante las tareas.' } }));
   }
 
   async function editarSesion(id) {

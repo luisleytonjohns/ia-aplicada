@@ -135,8 +135,8 @@
       '<p class="sub" style="font-size:.82rem">Los horarios son aproximados. Plazo para completar el trabajo: hasta las 23:59 del día de la clase, si registraste asistencia.</p></div>' +
       '<div class="tarjeta"><h2>Materiales</h2>' + (s.materiales && s.materiales.length ? '<div class="materiales">' + s.materiales.map(S.material).join('') + '</div>' :
         '<p class="sub">' + (s.materiales_visibles === false ? 'Los materiales de esta sesión aún no están disponibles.' : 'Esta sesión no tiene materiales cargados.') + '</p>') + '</div>' +
-      '<div class="tarjeta"><h2>Tareas, control y entrega</h2><p class="sub">Las tareas de la sesión aparecerán aquí durante la clase, con su consigna paso a paso, el tiempo sugerido y el criterio con que se revisan.</p>' +
-      '<div class="opciones"><span class="chip ' + (s.control_abierto ? 'ok' : 'gris') + '">Control de lectura: ' + (s.control_abierto ? 'abierto' : 'cerrado') + '</span><span class="chip ' + (s.entrega_abierta ? 'ok' : 'gris') + '">Entrega: ' + (s.entrega_abierta ? 'abierta' : 'cerrada') + '</span></div></div>';
+      '<div class="opciones">' + (s.control_abierto ? '<span class="chip ok">Control de lectura abierto</span>' : '') + (s.entrega_abierta ? '<span class="chip ok">Entrega abierta</span>' : '') + '</div>' +
+      '<section class="tarjeta tareas" id="tareas-sesion"></section>';
   };
 
   /** Mantiene el reloj al día cada 30 segundos mientras exista el contenedor. */
