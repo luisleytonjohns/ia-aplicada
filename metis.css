@@ -189,8 +189,8 @@ td select.estado{width:auto;padding:6px 8px;font-size:.84rem}
 
 /* Ruta de la sesión en cuatro momentos */
 .momentos{list-style:none;margin:0;padding:0;display:grid}
-.momentos li{display:grid;grid-template-columns:14px 1fr;gap:12px;padding:12px 0;border-bottom:1px solid var(--borde)}
-.momentos li:last-child{border-bottom:0}
+.momentos>li{display:grid;grid-template-columns:14px 1fr;gap:12px;padding:12px 0;border-bottom:1px solid var(--borde)}
+.momentos>li:last-child{border-bottom:0}
 .momentos .punto{width:12px;height:12px;border-radius:50%;margin-top:5px}
 .momentos .m-cab{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline}
 .momentos .m-cab b{font:600 1rem/1.3 var(--disp)}
@@ -198,8 +198,9 @@ td select.estado{width:auto;padding:6px 8px;font-size:.84rem}
 .momentos p{margin:4px 0 0;color:var(--pizarra);font-size:.9rem}
 .momentos details{margin-top:6px;font-size:.88rem}
 .momentos summary{cursor:pointer;color:var(--cobalto);font-weight:500}
-.momentos details ul{margin:6px 0 0;padding-left:18px;display:grid;gap:4px;color:var(--pizarra)}
-.momentos li.actual{background:#F2F6FF;margin:0 -12px;padding-inline:12px;border-radius:10px}
+.momentos details ul{margin:6px 0 0;padding-left:18px;display:grid;gap:6px;color:var(--pizarra)}
+.momentos details li{display:list-item;padding:0;border:0}
+.momentos>li.actual{background:#F2F6FF;margin:0 -12px;padding-inline:12px;border-radius:10px}
 
 /* Inicio del estudiante */
 .inicio-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
