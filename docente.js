@@ -4,11 +4,11 @@
   const M = window.M, esc = M.esc, $ = M.$;
   const D = window.Docente = { versiones: [], versionId: null, pestana: 'hoy', personas: [] };
 
-  const PESTANAS = [['hoy', 'Clase de hoy'], ['versiones', 'Versiones del curso'], ['sesiones', 'Sesiones'], ['registro', 'Links de registro'], ['personas', 'Personas']];
+  const PESTANAS = [['hoy', 'Inicio'], ['versiones', 'Cursos'], ['sesiones', 'Sesiones'], ['registro', 'Registros'], ['personas', 'Personas']];
 
   /** Punto de entrada desde el enrutador (#d/pestaña). Monta el ambiente la primera vez y luego solo cambia de pestaña. */
   D.ir = async function (c, tab) {
-    if (D.c !== c || !$('#d-tabs')) await montar(c);
+    if (D.c !== c || !$('#d-panel')) await montar(c);
     tab = PESTANAS.some(t => t[0] === tab) ? tab : (PESTANAS.some(t => t[0] === D.pestana) ? D.pestana : 'hoy');
     // La dirección siempre muestra la pestaña, para que Atrás y recargar funcionen bien.
     if (location.hash !== '#d/' + tab) history.replaceState(null, '', location.pathname + '#d/' + tab);
@@ -18,12 +18,12 @@
   async function montar(c) {
     D.c = c;
     try { D.pestana = localStorage.getItem('metis_doc_tab') || 'hoy'; D.versionId = localStorage.getItem('metis_doc_version'); } catch (e) { /* sin almacenamiento */ }
-    c.innerHTML = '<div class="cabecera"><div><h1>Ambiente del docente</h1><p>Clase de hoy, versiones del curso, sesiones, registro y personas.</p></div><div id="d-selector"></div></div>' +
-      '<div id="d-contrato"></div><nav class="tabs" id="d-tabs">' +
-      PESTANAS.map(t => '<a href="#d/' + t[0] + '" data-tab="' + t[0] + '">' + t[1] + '</a>').join('') +
-      '</nav><section id="d-panel"><div class="vacio">Cargando…</div></section>';
+    c.innerHTML = '<div class="doc-cab"><h1>Ambiente del docente</h1><p>Gestiona cursos, sesiones, estudiantes y recursos en un solo lugar.</p></div>' +
+      '<div id="d-selector"></div><div id="d-contrato"></div><div class="resumen" id="d-resumen"></div>' +
+      '<h2 class="doc-sec" id="d-titulo"></h2><section id="d-panel"><div class="vacio">Cargando…</div></section>';
     revisarContrato();
     await cargarVersiones();
+    pintarResumen();
   }
 
   async function revisarContrato() {
@@ -44,9 +44,34 @@
   function pintarSelector() {
     const el = $('#d-selector');
     if (!D.versiones.length) { el.innerHTML = ''; return; }
-    el.innerHTML = '<div class="selector"><label class="etq" for="d-version">Versión</label><select id="d-version">' +
-      D.versiones.map(v => '<option value="' + esc(v.id) + '"' + (v.id === D.versionId ? ' selected' : '') + '>' + esc(nombreVersion(v)) + '</option>').join('') + '</select></div>';
-    $('#d-version').addEventListener('change', e => { D.versionId = e.target.value; recordar(); irA(D.pestana); });
+    el.innerHTML = '<label class="doc-version"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c3 2.5 9 2.5 12 0v-5"/></svg><span class="sr">Curso</span><select id="d-version">' +
+      D.versiones.map(v => '<option value="' + esc(v.id) + '"' + (v.id === D.versionId ? ' selected' : '') + '>' + esc(nombreVersion(v)) + '</option>').join('') + '</select></label>';
+    $('#d-version').addEventListener('change', e => { D.versionId = e.target.value; recordar(); pintarResumen(); irA(D.pestana); });
+  }
+
+  /** Tres tarjetas de resumen: cursos activos, próxima sesión y estudiantes del curso elegido. */
+  const ICO_RES = {
+    cursos: '<path d="M3 5.5c3-1.5 6-1.5 9 .5 3-2 6-2 9-.5V19c-3-1.5-6-1.5-9 .5-3-2-6-2-9-.5zM12 6v13.5"/>',
+    sesion: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/>',
+    personas: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 5.5a3 3 0 010 5.8M18 14.5c1.9.7 3 2.6 3 5.5"/>'
+  };
+  async function pintarResumen() {
+    const el = $('#d-resumen'); if (!el) return;
+    const v = versionActual();
+    const tarjeta = (k, cls, rot, val, href) => '<a class="res ' + cls + '" href="' + href + '"><span class="ico"><svg viewBox="0 0 24 24">' + ICO_RES[k] + '</svg></span><span><small>' + rot + '</small><b>' + val + '</b></span><span class="fl" aria-hidden="true">→</span></a>';
+    const activas = D.versiones.filter(x => x.estado !== 'archivada').length;
+    const pintar = prox => {
+      el.innerHTML = tarjeta('cursos', 'c1', 'Cursos activos', activas, '#d/versiones') + tarjeta('sesion', 'c2', 'Próxima sesión', prox, '#d/hoy') +
+        tarjeta('personas', 'c3', 'Estudiantes', v ? v.estudiantes : 0, '#d/personas');
+    };
+    pintar('…');
+    if (!v) { pintar('Sin curso'); return; }
+    try {
+      const r = await M.api('listarSesiones', { version_id: v.id });
+      const hoy = window.Sesiones.hoy();
+      const prox = r.sesiones.filter(x => x.fecha && x.fecha >= hoy).sort((a, b) => (a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : a.numero - b.numero))[0];
+      pintar(prox ? 'Sesión ' + prox.numero + ' · ' + (prox.fecha === hoy ? 'hoy' : M.fechaCorta(prox.fecha)) + (window.Sesiones.horaDe(prox, v) ? ' ' + esc(window.Sesiones.horaDe(prox, v)) : '') : 'Por programar');
+    } catch (e) { pintar('Por programar'); }
   }
 
   function nombreVersion(v) { return v.asignatura + ' · ' + v.institucion + ' · ' + [v.periodo, v.anio].filter(Boolean).join(' '); }
@@ -60,6 +85,7 @@
     if (!PESTANAS.some(t => t[0] === tab)) tab = 'hoy';
     D.pestana = tab; recordar();
     document.querySelectorAll('#d-tabs [data-tab]').forEach(b => b.classList.toggle('activo', b.dataset.tab === tab));
+    const tit = $('#d-titulo'); if (tit) tit.textContent = { hoy: 'Clase de hoy', versiones: 'Cursos', sesiones: 'Sesiones', registro: 'Links de registro', personas: 'Personas' }[tab];
     const p = $('#d-panel');
     if (tab !== 'versiones' && !D.versionId) { p.innerHTML = '<div class="tarjeta" style="margin-top:16px"><h2 style="font-size:1.1rem">Primero crea una versión del curso</h2><p style="margin:0">Las sesiones, los links de registro y las personas pertenecen a una versión.</p><div><a class="btn p" href="#d/versiones">Ir a versiones</a></div></div>'; return; }
     return Promise.resolve(({ hoy: panelHoy, versiones: panelVersiones, sesiones: panelSesiones, registro: panelRegistro, personas: panelPersonas })[tab](p));
@@ -229,16 +255,18 @@
 
   /* ---------- Versiones ---------- */
   function panelVersiones(p) {
-    p.innerHTML = '<div style="display:flex;justify-content:flex-end;margin:16px 0"><button class="btn p" type="button" id="v-nueva">Nueva versión</button></div>' +
-      (D.versiones.length ? '<div class="tarjetas">' + D.versiones.map(v =>
-        '<article class="tarjeta"><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div><h3 style="font-size:1.05rem">' + esc(v.asignatura) + '</h3><small style="color:var(--pizarra)">' + esc([v.institucion, v.escuela].filter(Boolean).join(' · ')) + '</small></div>' +
-        '<span class="chip ' + (v.estado === 'archivada' ? 'gris' : 'ok') + '">' + (v.estado === 'archivada' ? 'Archivada' : 'Activa') + '</span></div>' +
-        '<div class="datos"><div class="dato"><span>Periodo</span><b>' + esc([v.periodo, v.anio].filter(Boolean).join(' ')) + '</b></div><div class="dato"><span>Sesiones</span><b>' + v.sesiones + ' × ' + v.minutos + ' min' + (v.hora_inicio ? ' · ' + esc(v.hora_inicio) : '') + '</b></div>' +
-        '<div class="dato"><span>Estudiantes</span><b>' + v.estudiantes + '</b></div><div class="dato"><span>Observadores</span><b>' + v.observadores + '</b></div></div>' +
-        '<div><button class="btn s peq" type="button" data-editar="' + esc(v.id) + '">Editar</button></div></article>').join('') + '</div>'
-        : '<div class="tarjeta vacio">Aún no hay versiones. Crea la primera con el botón Nueva versión.</div>');
+    p.innerHTML = '<div class="doc-acc"><button class="btn p" type="button" id="v-nueva">+ Nueva versión</button></div>' +
+      (D.versiones.length ? D.versiones.map(v =>
+        '<article class="curso"><div class="curso-img" aria-hidden="true"></div><div class="curso-info">' +
+        '<div class="curso-tit"><h3>' + esc(v.asignatura) + '</h3><span class="chip ' + (v.estado === 'archivada' ? 'gris' : 'ok') + '">' + (v.estado === 'archivada' ? 'Archivada' : 'Activa') + '</span></div>' +
+        '<p class="curso-inst">' + esc([v.institucion, v.escuela].filter(Boolean).join(' · ')) + '</p>' +
+        '<p class="curso-meta"><span>' + esc([v.periodo, v.anio].filter(Boolean).join(' ')) + '</span><span>' + v.sesiones + ' sesiones · ' + v.minutos + ' min' + (v.hora_inicio ? ' · desde las ' + esc(v.hora_inicio) : '') + '</span></p>' +
+        '<div class="curso-num"><div><small>Estudiantes</small><b>' + v.estudiantes + '</b></div><div><small>Observadores</small><b>' + v.observadores + '</b></div></div></div>' +
+        '<div class="curso-acc"><button class="btn p" type="button" data-editar="' + esc(v.id) + '">Editar curso</button><button class="btn s" type="button" data-abrir="' + esc(v.id) + '">Abrir sesiones</button></div></article>').join('')
+        : '<div class="tarjeta vacio">Aún no hay cursos. Crea el primero con el botón Nueva versión.</div>');
     $('#v-nueva').onclick = () => formVersion(null);
     p.querySelectorAll('[data-editar]').forEach(b => { b.onclick = () => formVersion(D.versiones.find(v => v.id === b.dataset.editar)); });
+    p.querySelectorAll('[data-abrir]').forEach(b => { b.onclick = () => { D.versionId = b.dataset.abrir; recordar(); pintarSelector(); pintarResumen(); M.ir('#d/sesiones'); }; });
   }
 
   function formVersion(v) {
@@ -257,7 +285,7 @@
       ['institucion', 'escuela', 'logo_url', 'asignatura', 'codigo', 'periodo', 'anio', 'fecha_inicio', 'sesiones', 'sesiones_semana', 'minutos', 'hora_inicio', 'asistencia_min', 'tolerancia_min', 'defensas_sesion', 'exigencia', 'whatsapp', 'estado']
         .forEach(k => { d[k] = $('#v-' + k, m.el).value; });
       await M.ocupado(ev.currentTarget, async () => {
-        try { const g = await M.api('guardarVersion', d); D.versionId = g.id; recordar(); m.cerrar(); await M.conVelo(async () => { await cargarVersiones(); await irA('versiones', true); }); }
+        try { const g = await M.api('guardarVersion', d); D.versionId = g.id; recordar(); m.cerrar(); await M.conVelo(async () => { await cargarVersiones(); pintarResumen(); await irA('versiones', true); }); }
         catch (e) { M.msg($('#v-msg', m.el), e.message, 'mal'); }
       });
     };

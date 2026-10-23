@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const CFG = window.METIS_CONFIG || {};
-  const VERSION_INTERFAZ = '0.5.0';
+  const VERSION_INTERFAZ = '0.5.1';
 
   // Acciones que esta interfaz usa. Se comparan con las del servicio para detectar desajustes.
   const CONTRATO = ['ping', 'loginGoogle', 'loginClave', 'infoRegistro', 'registrarConGoogle', 'registrarConClave',
@@ -192,17 +192,56 @@
   }
 
   /* ---------- Vistas de acceso ---------- */
+  /* Portada: presentación de Metis con el acceso a la derecha. */
+  const ICONOS = {
+    artes: '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 7c-9.4 0-17 7-17 15.6 0 6.6 5 9.9 9.6 9.9 2.5 0 3.4 1.6 3.4 3.3 0 2.8 2 5.2 5 5.2 9 0 15-8.3 15-17.5C40 14.2 32.8 7 24 7z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><circle cx="16" cy="20" r="2.6" fill="#FF6B35"/><circle cx="23" cy="14.5" r="2.6" fill="#2457FF"/><circle cx="31" cy="17" r="2.6" fill="#00A896"/><path d="M27 33l14-14" stroke="#FF6B35" stroke-width="3" stroke-linecap="round"/></svg>',
+    ia: '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M20 9a6 6 0 00-6 6 6 6 0 00-4 10.5A6 6 0 0014 36a6 6 0 006 3V9zM28 9a6 6 0 016 6 6 6 0 014 10.5A6 6 0 0134 36a6 6 0 01-6 3V9z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M20 18h-4M20 28h-5M28 18h4M28 28h5M24 9v30" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="15" cy="18" r="1.8" fill="currentColor"/><circle cx="33" cy="28" r="1.8" fill="currentColor"/></svg>',
+    adm: '<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M8 40h32" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><rect x="11" y="26" width="6" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="2.2"/><rect x="21" y="18" width="6" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="2.2"/><rect x="31" y="10" width="6" height="26" rx="1" fill="none" stroke="currentColor" stroke-width="2.2"/></svg>',
+    eco: '<svg viewBox="0 0 48 48" aria-hidden="true"><ellipse cx="22" cy="13" rx="11" ry="4.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M11 13v8c0 2.5 4.9 4.5 11 4.5s11-2 11-4.5v-8M11 21v8c0 2.5 4.9 4.5 11 4.5M11 29v7c0 2.5 4.9 4.5 11 4.5" fill="none" stroke="currentColor" stroke-width="2.2"/><circle cx="33" cy="33" r="7" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M33 29.5v7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
+  };
+
   function vistaLogin(aviso) {
-    pantallaAcceso(
-      '<div><h1>Ingresar</h1><p class="sub">Usa tu cuenta de Google o tu correo y clave.</p></div>' +
-      '<div id="l-msg"></div><div id="l-google"></div><div class="sep">o con correo y clave</div>' +
-      '<form id="l-form" class="caja" style="gap:12px" novalidate>' +
-      '<div class="campo"><label for="l-usuario">Correo</label><input type="email" id="l-usuario" autocomplete="username"></div>' +
-      '<div class="campo"><label for="l-clave">Clave</label><input type="password" id="l-clave" autocomplete="current-password"></div>' +
-      '<button class="btn p ancho" type="submit">Ingresar</button></form>' +
-      '<button class="btn t" id="l-olvido" type="button">¿Olvidaste tu clave o no tienes una?</button>' +
-      '<form id="r-form" class="caja oculto" style="gap:12px" novalidate><div class="campo"><label for="r-correo">Tu correo registrado</label><input type="email" id="r-correo"></div>' +
-      '<button class="btn s ancho" type="submit">Enviarme un enlace para crear clave</button></form>');
+    const pilar = (k, t, d) => '<div class="pilar ' + k + '"><span class="ico">' + ICONOS[k] + '</span><b>' + t + '</b><p>' + d + '</p></div>';
+    app().innerHTML = '<div class="portada">' +
+      '<header class="p-barra"><div class="p-in"><a class="marca" href="./" aria-label="Metis">' + M.simbolo(46, true) + '<span class="word">METIS</span></a>' +
+      '<nav class="p-nav"><button type="button" data-ir="p-top" class="activo">Inicio</button><button type="button" data-ir="p-propuesta">¿Qué es Metis?</button><button type="button" data-ir="p-pilares">Características</button><button type="button" data-ir="p-acceso" class="p-ingresar">Ingresar</button></nav></div></header>' +
+      '<section class="p-hero" id="p-top"><div class="p-in"><div class="p-texto">' +
+      '<span class="p-rotulo">Artes Digitales</span>' +
+      '<h1>IA aplicada a la <em>Administración</em> y la <em>Economía</em></h1>' +
+      '<p class="p-lema">Analiza · Verifica · Decide · Construye</p>' +
+      '<p class="p-bajada">Metis es la plataforma del curso: cada sesión, sus materiales, el trabajo en clase y tu proyecto en un solo lugar. Usarás herramientas de inteligencia artificial para resolver un problema real de tu organización, con evidencia y criterio propio.</p>' +
+      '<button type="button" class="p-boton" data-ir="p-propuesta">Descubre más <span aria-hidden="true">→</span></button></div>' +
+      '<div class="p-arte" role="img" aria-label="Busto clásico intervenido con triángulos y gráficos de datos"></div></div></section>' +
+      '<section class="p-propuesta" id="p-propuesta"><div class="p-in"><div class="p-izq">' +
+      '<span class="p-rotulo oscuro">Nuestra propuesta</span>' +
+      '<h2>Donde la creatividad y la inteligencia se encuentran</h2>' +
+      '<p class="p-parrafo">Artes Digitales continúa la tradición de las artes liberales: aprender a pensar con precisión, argumentar con evidencia y comunicar con claridad, ahora con las herramientas de inteligencia artificial que ya cambiaron el trabajo en las organizaciones.</p>' +
+      '<div class="pilares" id="p-pilares">' +
+      pilar('artes', 'Artes digitales', 'Creatividad que transforma ideas en soluciones.') +
+      pilar('ia', 'Inteligencia artificial', 'Herramientas que potencian tu pensamiento, sin reemplazarlo.') +
+      pilar('adm', 'Administración', 'Procesos más eficientes, medidos contra una línea base.') +
+      pilar('eco', 'Economía', 'Decisiones basadas en datos y en su contexto real.') +
+      '</div></div>' +
+      '<aside class="p-acceso" id="p-acceso"><div class="marca">' + M.simbolo(40, true) + '<span class="word">METIS</span></div>' +
+      '<div><h2>Inicia sesión</h2><p class="p-sub">Accede a tu cuenta para continuar.</p></div>' +
+      '<div id="l-msg"></div>' +
+      '<form id="l-form" class="p-form" novalidate>' +
+      '<label class="p-campo"><span class="sr">Correo</span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3.5 6.5l8.5 6.5 8.5-6.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><input type="email" id="l-usuario" autocomplete="username" placeholder="Correo electrónico"></label>' +
+      '<label class="p-campo"><span class="sr">Clave</span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 10V7a4 4 0 018 0v3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><input type="password" id="l-clave" autocomplete="current-password" placeholder="Clave">' +
+      '<button type="button" class="p-ojo" id="l-ver" aria-label="Mostrar u ocultar la clave"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button></label>' +
+      '<button class="p-entrar" type="submit">Ingresar</button></form>' +
+      '<button class="p-link" id="l-olvido" type="button">¿Olvidaste tu clave o no tienes una?</button>' +
+      '<form id="r-form" class="p-form oculto" novalidate><label class="p-campo"><span class="sr">Tu correo registrado</span><input type="email" id="r-correo" placeholder="Tu correo registrado"></label>' +
+      '<button class="p-entrar sec" type="submit">Enviarme un enlace para crear clave</button></form>' +
+      '<div class="p-sep">o ingresa con Google</div><div id="l-google" class="p-google"></div>' +
+      '<p class="p-nota">¿No tienes cuenta? Pídele a tu docente el link de registro del curso.</p></aside></div></section>' +
+      '<section class="p-cita"><div class="p-in"><blockquote><p>“La inteligencia no es solo lo que piensas, sino lo que haces con lo que sabes.”</p><cite>Metis</cite></blockquote></div></section>' +
+      '<footer class="p-pie"><div class="p-in"><div class="marca">' + M.simbolo(34, true) + '<span class="word">METIS</span></div><span class="p-lema-pie">Analiza · Verifica · Decide · Construye</span>' +
+      '<div class="p-redes"><a href="https://linkedin.com/in/luis-leyton-johns" target="_blank" rel="noopener" aria-label="LinkedIn"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3" fill="currentColor"/><path d="M8 10v7M8 7.2v.1M11.5 17v-4.2c0-1.5 1-2.6 2.4-2.6s2.1 1 2.1 2.6V17M11.5 10v7" stroke="#10213D" stroke-width="1.8" stroke-linecap="round"/></svg></a>' +
+      '<a href="https://orcid.org/0000-0002-4462-403X" target="_blank" rel="noopener" aria-label="ORCID"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5" fill="currentColor"/><path d="M8.6 10v6.5M8.6 7.6v.1M11.4 10h2.2a3.2 3.2 0 010 6.5h-2.2V10z" stroke="#10213D" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></a></div></div></footer>' +
+      M.pie() + '</div>';
+    app().querySelectorAll('[data-ir]').forEach(b => { b.onclick = () => { const el = document.getElementById(b.dataset.ir); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }; });
+    $('#l-ver').onclick = () => { const c = $('#l-clave'); c.type = c.type === 'password' ? 'text' : 'password'; };
     if (aviso) M.msg('#l-msg', aviso.texto, aviso.tipo);
     M.botonGoogle($('#l-google'), async cred => {
       M.msg('#l-msg', 'Verificando…', 'info');
@@ -366,6 +405,7 @@
     const s = M.estado.sesion; const u = s.usuario;
     const rotulo = { docente: 'Docente', estudiante: 'Estudiante', observador: 'Observador' }[u.rol] || '';
     const inicio = u.rol === 'docente' ? '#d/hoy' : '#inicio';
+    if (u.rol === 'docente') { ambienteDocente(u); await enrutar(); return; }
     app().innerHTML = '<header class="barra"><div class="in"><a class="marca" href="' + inicio + '" aria-label="Ir al inicio">' + M.simbolo(30, true) + '<span class="word">METIS</span></a>' +
       '<nav class="usuario"><a class="btn t" href="' + inicio + '">Inicio</a>' +
       (u.foto_mini ? '<img class="foto" style="width:30px;height:30px" src="' + esc(u.foto_mini) + '" alt="">' : '') +
@@ -379,6 +419,42 @@
       M.estado.versionId = (s.inscripciones.find(i => i.version.id === guardada) || s.inscripciones[0]).version.id;
     }
     await enrutar();
+  }
+
+  /* Estructura del docente: menú lateral, barra superior con su cuenta y el contenido a la derecha. */
+  const ICO_MENU = {
+    hoy: '<path d="M4 11l8-7 8 7v9a1 1 0 01-1 1h-5v-6h-4v6H5a1 1 0 01-1-1z"/>',
+    versiones: '<path d="M3 5.5c3-1.5 6-1.5 9 .5 3-2 6-2 9-.5V19c-3-1.5-6-1.5-9 .5-3-2-6-2-9-.5zM12 6v13.5"/>',
+    sesiones: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16M11 14l2 1.5-2 1.5z"/>',
+    registro: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3h6v3H9zM8.5 11h7M8.5 15h7"/>',
+    personas: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 5.5a3 3 0 010 5.8M18 14.5c1.9.7 3 2.6 3 5.5"/>'
+  };
+  function ambienteDocente(u) {
+    const item = (k, t) => '<a href="#d/' + k + '" data-tab="' + k + '"><svg viewBox="0 0 24 24" aria-hidden="true">' + ICO_MENU[k] + '</svg><span>' + t + '</span></a>';
+    const inicial = esc((u.primer_nombre || u.nombre || 'D').charAt(0).toUpperCase());
+    app().innerHTML = '<div class="doc">' +
+      '<aside class="doc-lado" id="doc-lado"><a class="marca" href="#d/hoy">' + M.simbolo(40, true) + '<span class="word">METIS</span></a>' +
+      '<nav class="doc-menu" id="d-tabs">' + item('hoy', 'Inicio') + item('versiones', 'Cursos') + item('sesiones', 'Sesiones') + item('registro', 'Registros') + item('personas', 'Personas') + '</nav>' +
+      '<div class="doc-arte" aria-hidden="true"><i class="t1"></i><i class="t2"></i><i class="t3"></i><i class="t4"></i></div>' +
+      '<p class="doc-lema">Analiza · Verifica ·<br>Decide · Construye</p></aside>' +
+      '<div class="doc-velo" id="doc-velo"></div>' +
+      '<div class="doc-main"><header class="doc-barra"><button class="doc-hamb" id="doc-hamb" type="button" aria-label="Abrir el menú"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>' +
+      '<a class="marca" href="#d/hoy">' + M.simbolo(36, false) + '<span class="word">METIS</span></a>' +
+      '<div class="doc-cuenta"><button type="button" id="doc-cuenta" aria-haspopup="true"><span class="doc-avatar">' + (u.foto_mini ? '<img src="' + esc(u.foto_mini) + '" alt="">' : inicial) + '</span><span class="quien"><b>' + esc(u.primer_nombre || u.nombre) + '</b> · Docente</span><svg viewBox="0 0 24 24" class="flecha"><path d="M6 9l6 6 6-6"/></svg></button>' +
+      '<div class="doc-desp oculto" id="doc-desp"><button type="button" id="a-clave">Cambiar clave</button><button type="button" id="a-salir">Salir</button></div></div></header>' +
+      '<main class="doc-cont" id="contenido"></main>' +
+      '<footer class="doc-pie"><span><b>METIS</b> · Artes Digitales: IA Aplicada a la Administración y la Economía</span>' +
+      '<span>Creado por Luis Ernest Leyton Johns · ORCID <a href="https://orcid.org/0000-0002-4462-403X" target="_blank" rel="noopener">0000-0002-4462-403X</a> · <a href="https://linkedin.com/in/luis-leyton-johns" target="_blank" rel="noopener">LinkedIn</a> · © ' + new Date().getFullYear() + ' Todos los derechos reservados · <a href="privacidad.html">Privacidad</a></span></footer></div></div>';
+    const desp = $('#doc-desp');
+    $('#doc-cuenta').onclick = e => { e.stopPropagation(); desp.classList.toggle('oculto'); };
+    document.addEventListener('click', () => desp.classList.add('oculto'));
+    $('#a-salir').onclick = () => { M.salir(false); vistaLogin({ texto: 'Cerraste tu sesión.', tipo: 'ok' }); };
+    $('#a-clave').onclick = modalClave;
+    const lado = $('#doc-lado'), velo = $('#doc-velo');
+    const cerrar = () => { lado.classList.remove('abierto'); velo.classList.remove('abierto'); };
+    $('#doc-hamb').onclick = () => { lado.classList.add('abierto'); velo.classList.add('abierto'); };
+    velo.onclick = cerrar;
+    lado.querySelectorAll('a').forEach(a => a.addEventListener('click', cerrar));
   }
 
   function selectorCurso() {
