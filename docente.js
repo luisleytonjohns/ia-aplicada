@@ -312,10 +312,22 @@
     }
     const semanas = {};
     r.sesiones.forEach(s => { (semanas[s.semana] = semanas[s.semana] || []).push(s); });
-    p.innerHTML = '<div class="msg info" style="margin-top:16px">Oculta: el estudiante no la ve. Visible: ve objetivos y ruta, sin trabajar. Abierta: puede trabajar si registró asistencia. Cerrada: solo lectura. Los materiales, el control y la entrega se abren por separado. El observador ve todo como visible.</div><div id="s-msg"></div>' +
+    const doce = r.sesiones.length === 12;
+    p.innerHTML = (doce ? '<div class="plan-base"><div><b>Planificación base del curso</b><p class="sub" style="margin:0">Carga las actividades de las doce sesiones con su consigna, minutos y criterio. No toca las sesiones que ya tienen actividades. También puedes actualizar títulos y objetivos a la última planificación sin perder fechas ni materiales.</p></div>' +
+        '<div class="acciones"><button class="btn p peq" type="button" id="s-tareas-base">Cargar tareas base</button><button class="btn s peq" type="button" id="s-plan-base">Actualizar títulos y objetivos</button></div></div>' : '') +
+      '<div class="msg info" style="margin-top:16px">Oculta: el estudiante no la ve. Visible: ve objetivos y ruta, sin trabajar. Abierta: puede trabajar si registró asistencia. Cerrada: solo lectura. Los materiales, el control y la entrega se abren por separado. El observador ve todo como visible.</div><div id="s-msg"></div>' +
       Object.keys(semanas).sort((a, b) => a - b).map(w => '<div class="semana-cab"><h3 class="semana-t" style="margin:0">Semana ' + w + '</h3><div class="acciones">' +
         ['oculta:Ocultar', 'visible:Hacer visible', 'abierta:Abrir', 'cerrada:Cerrar'].map(x => { const [e, t] = x.split(':'); return '<button class="btn s peq" type="button" data-semana="' + w + '" data-estado="' + e + '">' + t + ' semana</button>'; }).join('') + '</div></div>' +
         '<div class="tabla"><table><thead><tr><th>Nº</th><th>Sesión</th><th>Estado</th><th>Habilitado</th><th></th></tr></thead><tbody>' + semanas[w].map(filaSesion).join('') + '</tbody></table></div>').join('');
+    const bt = $('#s-tareas-base'), bp = $('#s-plan-base');
+    if (bt) bt.onclick = () => M.ocupado(bt, async () => {
+      try { const x = await M.api('cargarTareasBase', { version_id: v.id }); await irA('sesiones', true); M.msg('#s-msg', 'Se cargaron ' + x.tareas + ' actividades en ' + x.sesiones + ' sesiones.' + (x.omitidas === 1 ? ' Se respetó 1 sesión que ya tenía actividades.' : x.omitidas ? ' Se respetaron ' + x.omitidas + ' sesiones que ya tenían actividades.' : ''), 'ok'); }
+      catch (e) { M.msg('#s-msg', e.message, 'mal'); }
+    });
+    if (bp) bp.onclick = () => M.ocupado(bp, async () => {
+      try { await M.api('actualizarPlanBase', { version_id: v.id }); await irA('sesiones', true); M.msg('#s-msg', 'Títulos, unidades y objetivos actualizados en las doce sesiones. Fechas, materiales y estados no cambiaron.', 'ok'); }
+      catch (e) { M.msg('#s-msg', e.message, 'mal'); }
+    });
     p.querySelectorAll('[data-semana]').forEach(b => { b.onclick = async () => { const ids = D.sesiones.filter(s => String(s.semana) === b.dataset.semana).map(s => s.id); await cambiarEstado(ids, b.dataset.estado, b); }; });
     p.querySelectorAll('select.estado').forEach(sel => { sel.onchange = () => cambiarEstado([sel.dataset.id], sel.value, null); });
     p.querySelectorAll('[data-apertura]').forEach(ch => { ch.onchange = async () => {

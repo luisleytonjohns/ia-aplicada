@@ -299,6 +299,9 @@ table.entregas td,table.entregas th{text-align:center}table.entregas td:first-ch
 .bloqueadas{display:flex;gap:14px;align-items:flex-start;border:1px dashed var(--borde);border-radius:12px;padding:16px;background:#FBFAF7}
 .bloqueadas svg{width:28px;height:28px;flex:none;fill:none;stroke:var(--pizarra);stroke-width:1.7}
 
+.plan-base{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap;background:#fff;border:1px solid #E2DFD7;border-left:4px solid var(--turquesa);border-radius:12px;padding:16px;margin-top:4px}
+.plan-base>div:first-child{flex:1;min-width:260px;display:grid;gap:4px}
+
 /* Pantallas pequeñas */
 @media (max-width:860px){.inicio-grid{grid-template-columns:1fr}.inicio-grid .hoy{grid-row:auto}}
 @media (max-width:720px){
