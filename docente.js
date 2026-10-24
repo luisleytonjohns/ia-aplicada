@@ -280,12 +280,14 @@
       '<fieldset><legend>Estructura</legend><div class="fila">' + c('sesiones', 'Sesiones', 'number') + c('sesiones_semana', 'Sesiones por semana', 'number') + c('minutos', 'Minutos por sesión', 'number', 'Desde la apertura, incluido el recreo de 15 minutos.') + c('hora_inicio', 'Hora de inicio habitual', 'text', 'Formato 18:50. Cada sesión puede tener otra.') + '</div>' +
         '<label class="check"><input type="checkbox" id="v-apertura_lunes"' + (v.apertura_lunes !== false ? ' checked' : '') + '><span>Apertura semanal: el lunes de cada semana se abren solas las sesiones de esa semana y sus materiales, para la lectura previa. Las actividades se despliegan en clase, con la asistencia.</span></label></fieldset>' +
       '<fieldset><legend>Reglas</legend><div class="fila">' + c('asistencia_min', 'Asistencia mínima (%)', 'number') + c('tolerancia_min', 'Tolerancia de llegada (min)', 'number', 'Después de estos minutos, la asistencia queda como atraso.') + c('defensas_sesion', 'Defensas por sesión', 'number') + c('exigencia', 'Exigencia (%)', 'number') + '</div>' +
-      c('whatsapp', 'Link del grupo de WhatsApp', 'url', 'Opcional.') +
+      c('whatsapp', 'Link del grupo de WhatsApp', 'url', 'Opcional.') + '</fieldset>' +
+      '<fieldset><legend>Acceso de estudiantes a Metis</legend><div class="fila">' + c('acceso_desde', 'Desde', 'date', 'Día en que pueden empezar a ingresar.') + c('acceso_hasta', 'Hasta', 'date', 'Último día con acceso, hasta las 23:59.') + '</div>' +
+      '<span class="ayuda">Vacío: sin límite. Fuera de este período el estudiante no puede ingresar, aunque esté inscrito. Sugerencia: desde una semana antes de la primera sesión hasta 30 días después de la última. A cada persona le puedes dar fechas propias desde Personas.</span>' +
       '<div class="campo"><label for="v-estado">Estado</label><select id="v-estado"><option value="activa"' + (v.estado !== 'archivada' ? ' selected' : '') + '>Activa</option><option value="archivada"' + (v.estado === 'archivada' ? ' selected' : '') + '>Archivada</option></select></div></fieldset><div id="v-msg"></div>',
       '<button class="btn p" type="button" id="v-guardar">Guardar versión</button>');
     $('#v-guardar', m.el).onclick = async ev => {
       const d = { id: v.id };
-      ['institucion', 'escuela', 'logo_url', 'asignatura', 'codigo', 'periodo', 'anio', 'fecha_inicio', 'sesiones', 'sesiones_semana', 'minutos', 'hora_inicio', 'asistencia_min', 'tolerancia_min', 'defensas_sesion', 'exigencia', 'whatsapp', 'estado']
+      ['institucion', 'escuela', 'logo_url', 'asignatura', 'codigo', 'periodo', 'anio', 'fecha_inicio', 'sesiones', 'sesiones_semana', 'minutos', 'hora_inicio', 'asistencia_min', 'tolerancia_min', 'defensas_sesion', 'exigencia', 'whatsapp', 'estado', 'acceso_desde', 'acceso_hasta']
         .forEach(k => { d[k] = $('#v-' + k, m.el).value; });
       d.apertura_lunes = $('#v-apertura_lunes', m.el).checked;
       await M.ocupado(ev.currentTarget, async () => {
@@ -474,12 +476,72 @@
     } catch (e) { tb.innerHTML = '<tr><td colspan="6"><div class="msg mal">' + esc(e.message) + '</div></td></tr>'; }
   }
 
+  /* ---------- Fechas de acceso ---------- */
+  const fAcc = f => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(f || '')); return m ? m[3] + '-' + m[2] + '-' + m[1] : ''; };
+  const INST_OBS = ['UDP', 'UOH', 'USEK'];
+  function chipAcceso(a) {
+    if (!a) return '';
+    const origen = '<br><small style="color:var(--pizarra)">' + (a.propias ? 'Fechas propias' : (a.desde || a.hasta ? 'Fechas de la versión' : 'Sin fechas')) + '</small>';
+    if (a.estado === 'por_comenzar') return '<span class="chip info">Desde el ' + fAcc(a.desde) + '</span>' + origen;
+    if (a.estado === 'vencido') return '<span class="chip mal">Venció el ' + fAcc(a.hasta) + '</span>' + origen;
+    if (!a.hasta) return '<span class="chip gris">Sin término</span>' + origen;
+    const dias = Math.round((new Date(a.hasta + 'T12:00:00') - new Date(new Date().toISOString().slice(0, 10) + 'T12:00:00')) / 86400000);
+    return '<span class="chip ' + (dias <= 7 ? 'aviso' : 'ok') + '">' + (dias <= 7 ? (dias === 0 ? 'Vence hoy' : 'Vence en ' + dias + (dias === 1 ? ' día' : ' días')) : 'Hasta el ' + fAcc(a.hasta)) + '</span>' + origen;
+  }
+  /** Campos de institución (observador) y fechas propias de acceso. */
+  function bloqueAcceso(x, rol) {
+    x = x || {};
+    const v = versionActual() || {};
+    const inst = x.institucion_obs || '';
+    const otra = inst && INST_OBS.indexOf(inst) < 0;
+    const deVersion = v.acceso_desde || v.acceso_hasta ? 'del ' + (fAcc(v.acceso_desde) || 'inicio') + ' al ' + (fAcc(v.acceso_hasta) || 'sin término') : 'sin límite';
+    return '<div class="acc-bloque"><div class="campo" data-solo-obs' + (rol === 'observador' ? '' : ' style="display:none"') + '><label for="n-inst">Institución del observador *</label><div class="fila">' +
+      '<select id="n-inst"><option value="">Elige…</option>' + INST_OBS.map(i => '<option' + (inst === i ? ' selected' : '') + '>' + i + '</option>').join('') + '<option value="otra"' + (otra ? ' selected' : '') + '>Otra</option></select>' +
+      '<input type="text" id="n-inst-otra" placeholder="Nombre de la institución" value="' + esc(otra ? inst : '') + '"' + (otra ? '' : ' style="display:none"') + '></div></div>' +
+      '<div class="fila"><div class="campo"><label for="n-acc-desde">Acceso desde</label><input type="date" id="n-acc-desde" value="' + esc(x.acceso_desde || '') + '"></div>' +
+      '<div class="campo"><label for="n-acc-hasta">Acceso hasta</label><input type="date" id="n-acc-hasta" value="' + esc(x.acceso_hasta || '') + '"></div></div>' +
+      '<span class="ayuda">Vacías: usa el período de la versión (' + esc(deVersion) + '). El último día tiene acceso hasta las 23:59; después ya no puede ingresar.</span></div>';
+  }
+  function activarBloqueAcceso(el) {
+    const sel = $('#n-inst', el), otra = $('#n-inst-otra', el);
+    if (sel) sel.onchange = () => { otra.style.display = sel.value === 'otra' ? '' : 'none'; if (sel.value === 'otra') otra.focus(); };
+    el.querySelectorAll('input[name=n-rol]').forEach(r => { r.addEventListener('change', () => {
+      const obs = $('input[name=n-rol]:checked', el).value === 'observador';
+      el.querySelectorAll('[data-solo-obs]').forEach(x => { x.style.display = obs ? '' : 'none'; });
+      const v = versionActual() || {};
+      if (obs && !$('#n-acc-hasta', el).value && v.acceso_hasta) $('#n-acc-hasta', el).value = v.acceso_hasta;
+    }); });
+  }
+  function leerAcceso(el) {
+    const sel = $('#n-inst', el);
+    const inst = sel ? (sel.value === 'otra' ? $('#n-inst-otra', el).value.trim() : sel.value) : '';
+    return { acceso_desde: $('#n-acc-desde', el).value, acceso_hasta: $('#n-acc-hasta', el).value, institucion_obs: inst };
+  }
+  function formAcceso(x) {
+    const obs = x.rol_curso === 'observador';
+    const m = M.modal('Acceso de ' + x.nombre, '<p style="margin:0">' + chipAcceso(x.acceso) + '</p>' + bloqueAcceso(x, x.rol_curso) + '<div id="n-msg"></div>',
+      '<button class="btn s" type="button" data-cerrar>Cancelar</button>' + (x.acceso_desde || x.acceso_hasta ? '<button class="btn t" type="button" id="n-limpiar">Usar fechas de la versión</button>' : '') + '<button class="btn p" type="button" id="n-ok">Guardar</button>');
+    activarBloqueAcceso(m.el);
+    const guardar = async (btn, limpiar) => {
+      const a = leerAcceso(m.el);
+      if (obs && !a.institucion_obs) { M.msg($('#n-msg', m.el), 'Indica la institución del observador.', 'mal'); return; }
+      const d = { inscripcion_id: x.inscripcion_id, acceso_desde: limpiar ? '' : a.acceso_desde, acceso_hasta: limpiar ? '' : a.acceso_hasta };
+      if (obs) d.institucion_obs = a.institucion_obs;
+      await M.ocupado(btn, async () => {
+        try { await M.api('cambiarAccesoInscripcion', d); m.cerrar(); await cargarPersonas(); }
+        catch (e) { M.msg($('#n-msg', m.el), e.message, 'mal'); }
+      });
+    };
+    $('#n-ok', m.el).onclick = ev => guardar(ev.currentTarget, false);
+    const bl = $('#n-limpiar', m.el); if (bl) bl.onclick = ev => guardar(ev.currentTarget, true);
+  }
+
   /* ---------- Personas ---------- */
   async function panelPersonas(p) {
     p.innerHTML = '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:16px 0"><input type="text" id="p-buscar" placeholder="Buscar por nombre, correo o mención" style="max-width:360px">' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn s" type="button" id="p-masiva">Carga masiva</button><button class="btn p" type="button" id="p-nueva">Agregar persona</button></div></div>' +
       '<div id="p-msg"></div><div id="p-resumen" style="color:var(--pizarra);font-size:.86rem;margin-bottom:8px"></div>' +
-      '<div class="tabla"><table><thead><tr><th>Persona</th><th>Contacto</th><th>Rol</th><th>Ficha</th><th>Último ingreso</th><th></th></tr></thead><tbody id="p-lista"><tr><td colspan="6" class="vacio">Cargando…</td></tr></tbody></table></div>';
+      '<div class="tabla"><table><thead><tr><th>Persona</th><th>Contacto</th><th>Rol</th><th>Ficha</th><th>Acceso</th><th>Último ingreso</th><th></th></tr></thead><tbody id="p-lista"><tr><td colspan="7" class="vacio">Cargando…</td></tr></tbody></table></div>';
     $('#p-nueva').onclick = formPersona;
     $('#p-masiva').onclick = formMasiva;
     $('#p-buscar').oninput = pintarPersonas;
@@ -488,26 +550,29 @@
 
   async function cargarPersonas() {
     try { D.personas = await M.api('listarPersonas', { version_id: D.versionId }); pintarPersonas(); }
-    catch (e) { $('#p-lista').innerHTML = '<tr><td colspan="6"><div class="msg mal">' + esc(e.message) + '</div></td></tr>'; }
+    catch (e) { $('#p-lista').innerHTML = '<tr><td colspan="7"><div class="msg mal">' + esc(e.message) + '</div></td></tr>'; }
   }
 
   function pintarPersonas() {
     const q = ($('#p-buscar').value || '').toLowerCase();
-    const lista = D.personas.filter(x => !q || [x.nombre, x.correo_institucional, x.correo_personal, x.mencion, x.organizacion].join(' ').toLowerCase().indexOf(q) >= 0);
+    const lista = D.personas.filter(x => !q || [x.nombre, x.correo_institucional, x.correo_personal, x.mencion, x.organizacion, x.institucion_obs].join(' ').toLowerCase().indexOf(q) >= 0);
     const est = D.personas.filter(x => x.rol_curso === 'estudiante' && x.inscripcion_activa);
-    $('#p-resumen').textContent = est.length + ' estudiantes activos · ' + est.filter(x => x.ficha_completa).length + ' con ficha completa · ' + D.personas.filter(x => x.rol_curso === 'observador').length + ' observadores';
+    $('#p-resumen').textContent = est.length + ' estudiantes activos · ' + est.filter(x => x.ficha_completa).length + ' con ficha completa · ' + D.personas.filter(x => x.rol_curso === 'observador').length + ' observadores' +
+      (function () { const n = D.personas.filter(x => x.inscripcion_activa && x.acceso && x.acceso.estado === 'vencido').length; return n ? ' · ' + n + ' con acceso vencido' : ''; })();
     const tb = $('#p-lista');
     tb.innerHTML = lista.length ? lista.map(x =>
       '<tr' + (x.inscripcion_activa ? '' : ' style="opacity:.5"') + '><td><div class="persona">' + (x.foto_mini ? '<img class="foto" src="' + esc(x.foto_mini) + '" alt="" data-foto="' + esc(x.id) + '" style="cursor:zoom-in">' : '<span class="foto"></span>') +
       '<div><b>' + esc(x.nombre) + '</b><small>' + esc([x.mencion, x.organizacion].filter(Boolean).join(' · ')) + '</small></div></div></td>' +
       '<td><small>' + esc(x.correo_institucional) + (x.correo_personal ? '<br>' + esc(x.correo_personal) : '') + (x.celular ? '<br>' + esc(x.celular) : '') + '</small></td>' +
-      '<td><span class="chip ' + (x.rol_curso === 'observador' ? 'info' : 'gris') + '">' + (x.rol_curso === 'observador' ? 'Observador' : 'Estudiante') + '</span><br><small style="color:var(--pizarra)">' + esc({ link: 'Por link', manual: 'Alta manual', masiva: 'Carga masiva' }[x.origen] || x.origen) + '</small></td>' +
+      '<td><span class="chip ' + (x.rol_curso === 'observador' ? 'info' : 'gris') + '">' + (x.rol_curso === 'observador' ? 'Observador' + (x.institucion_obs ? ' · ' + esc(x.institucion_obs) : '') : 'Estudiante') + '</span><br><small style="color:var(--pizarra)">' + esc({ link: 'Por link', manual: 'Alta manual', masiva: 'Carga masiva' }[x.origen] || x.origen) + '</small></td>' +
       '<td>' + (x.rol_curso === 'observador' ? '<span class="chip gris">No aplica</span>' : (x.ficha_completa ? '<span class="chip ok">Completa</span>' : '<span class="chip aviso">Pendiente</span>')) + '</td>' +
+      '<td>' + chipAcceso(x.acceso) + '</td>' +
       '<td><small>' + esc(M.fecha(x.ultimo_ingreso) || 'Nunca') + '</small></td>' +
-      '<td><div class="acciones"><button class="btn s peq" type="button" data-editar="' + esc(x.id) + '">Editar</button><button class="btn t peq" type="button" data-acceso="' + esc(x.id) + '">Reenviar acceso</button>' +
+      '<td><div class="acciones"><button class="btn s peq" type="button" data-editar="' + esc(x.id) + '">Editar</button><button class="btn s peq" type="button" data-fechas="' + esc(x.id) + '">Fechas de acceso</button><button class="btn t peq" type="button" data-acceso="' + esc(x.id) + '">Reenviar acceso</button>' +
       '<button class="btn t peq" type="button" data-estado="' + esc(x.inscripcion_id) + '" data-activo="' + (x.inscripcion_activa ? '0' : '1') + '">' + (x.inscripcion_activa ? 'Desactivar' : 'Activar') + '</button></div></td></tr>').join('')
-      : '<tr><td colspan="6" class="vacio">' + (D.personas.length ? 'Nadie coincide con la búsqueda.' : 'Aún no hay personas en esta versión. Comparte un link de registro o agrégalas aquí.') + '</td></tr>';
+      : '<tr><td colspan="7" class="vacio">' + (D.personas.length ? 'Nadie coincide con la búsqueda.' : 'Aún no hay personas en esta versión. Comparte un link de registro o agrégalas aquí.') + '</td></tr>';
     tb.querySelectorAll('[data-editar]').forEach(b => { b.onclick = () => formEditar(D.personas.find(x => x.id === b.dataset.editar)); });
+    tb.querySelectorAll('[data-fechas]').forEach(b => { b.onclick = () => formAcceso(D.personas.find(x => x.id === b.dataset.fechas)); });
     tb.querySelectorAll('[data-acceso]').forEach(b => { b.onclick = () => reenviar(D.personas.find(x => x.id === b.dataset.acceso)); });
     tb.querySelectorAll('[data-estado]').forEach(b => { b.onclick = async () => { await M.ocupado(b, async () => { try { await M.api('cambiarEstadoInscripcion', { inscripcion_id: b.dataset.estado, activo: b.dataset.activo === '1' }); await cargarPersonas(); } catch (e) { M.msg('#p-msg', e.message, 'mal'); } }); }; });
     tb.querySelectorAll('[data-foto]').forEach(img => { img.onclick = () => verFoto(img.dataset.foto); });
@@ -527,11 +592,12 @@
   function formPersona() {
     const m = M.modal('Agregar persona',
       '<div class="campo"><span class="etq">Rol en esta versión</span><div class="opciones"><label><input type="radio" name="n-rol" value="estudiante" checked><span>Estudiante</span></label><label><input type="radio" name="n-rol" value="observador"><span>Observador</span></label></div>' +
-      '<span class="ayuda">El observador ve el curso como un estudiante, con el caso guía, sin poder enviar. Úsalo para jefaturas y directivos.</span></div>' + camposBasicos() +
+      '<span class="ayuda">El observador ve el curso como un estudiante, con el caso guía, sin poder enviar. Úsalo para jefaturas, directivos y académicos de otras instituciones.</span></div>' + camposBasicos() + bloqueAcceso({}, 'estudiante') +
       '<label class="check"><input type="checkbox" id="n-enviar" checked><span>Enviar por correo el acceso con su clave temporal</span></label><div id="n-msg"></div>',
       '<button class="btn p" type="button" id="n-ok">Agregar</button>');
+    activarBloqueAcceso(m.el);
     $('#n-ok', m.el).onclick = async ev => {
-      const d = Object.assign(leerBasicos(m.el), { version_id: D.versionId, rol: $('input[name=n-rol]:checked', m.el).value, enviar: $('#n-enviar', m.el).checked });
+      const d = Object.assign(leerBasicos(m.el), leerAcceso(m.el), { version_id: D.versionId, rol: $('input[name=n-rol]:checked', m.el).value, enviar: $('#n-enviar', m.el).checked });
       await M.ocupado(ev.currentTarget, async () => {
         try {
           const r = await M.api('crearPersona', d);
@@ -578,12 +644,14 @@
       '<p style="margin:0;font-size:.82rem;color:var(--pizarra)">La fila de encabezados es opcional. Las columnas vacías se dejan vacías, sin borrarlas. Máximo 200 filas. Gmail permite unos 100 correos al día.</p>' +
       '<div class="campo"><label for="n-texto">Filas</label><textarea id="n-texto" placeholder="Ana\t\tPérez\tSoto\tana.perez@mail.udp.cl\t\t+56912345678"></textarea></div>' +
       '<div class="opciones"><label><input type="radio" name="n-rol" value="estudiante" checked><span>Estudiantes</span></label><label><input type="radio" name="n-rol" value="observador"><span>Observadores</span></label></div>' +
+      bloqueAcceso({}, 'estudiante') + '<span class="ayuda">La institución y las fechas se aplican a todas las filas de esta carga.</span>' +
       '<label class="check"><input type="checkbox" id="n-enviar" checked><span>Enviar por correo el acceso a cada persona</span></label><div id="n-msg"></div>',
       '<button class="btn p" type="button" id="n-ok">Cargar</button>');
+    activarBloqueAcceso(m.el);
     $('#n-ok', m.el).onclick = async ev => {
       await M.ocupado(ev.currentTarget, async () => {
         try {
-          const r = await M.api('cargaMasiva', { version_id: D.versionId, texto: $('#n-texto', m.el).value, rol: $('input[name=n-rol]:checked', m.el).value, enviar: $('#n-enviar', m.el).checked });
+          const r = await M.api('cargaMasiva', Object.assign(leerAcceso(m.el), { version_id: D.versionId, texto: $('#n-texto', m.el).value, rol: $('input[name=n-rol]:checked', m.el).value, enviar: $('#n-enviar', m.el).checked }));
           let h = '<div class="msg ok">' + r.creados + ' personas nuevas · ' + r.ya_existian + ' ya existían y quedaron inscritas · ' + r.rechazados.length + ' filas rechazadas.</div>';
           if (r.rechazados.length) h += '<div class="tabla"><table><thead><tr><th>Fila</th><th>Contenido</th><th>Motivo</th></tr></thead><tbody>' + r.rechazados.map(x => '<tr><td>' + x.fila + '</td><td><small>' + esc(x.contenido) + '</small></td><td>' + esc(x.motivo) + '</td></tr>').join('') + '</tbody></table></div>';
           if (r.claves.length) h += '<div class="msg aviso">Estas claves no se pudieron enviar por correo. Cópialas ahora; no se volverán a mostrar.</div><div class="tabla"><table><thead><tr><th>Persona</th><th>Correo</th><th>Clave temporal</th></tr></thead><tbody>' + r.claves.map(x => '<tr><td>' + esc(x.nombre) + '</td><td>' + esc(x.correo) + '</td><td><code>' + esc(x.clave) + '</code></td></tr>').join('') + '</tbody></table></div>';

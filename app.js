@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const CFG = window.METIS_CONFIG || {};
-  const VERSION_INTERFAZ = '0.7.1';
+  const VERSION_INTERFAZ = '0.8.0';
 
   // Acciones que esta interfaz usa. Se comparan con las del servicio para detectar desajustes.
   const CONTRATO = ['ping', 'loginGoogle', 'loginClave', 'infoRegistro', 'registrarConGoogle', 'registrarConClave',
@@ -11,7 +11,7 @@
     'actualizarPersona', 'reenviarAcceso', 'cambiarEstadoInscripcion', 'cargaMasiva', 'verFoto',
     'misSesiones', 'verSesion', 'listarSesiones', 'generarSesiones', 'verSesionDocente', 'guardarSesion', 'cambiarEstadoSesiones', 'cambiarAperturaSesion',
     'registrarAsistencia', 'guardarRespuesta', 'subirArchivo', 'guardarTareas', 'codigoAsistencia', 'listarAsistencia', 'marcarAsistencia', 'entregasSesion', 'verRespuesta',
-    'cargarTareasBase', 'actualizarPlanBase', 'completarGuiasBase'];
+    'cargarTareasBase', 'actualizarPlanBase', 'completarGuiasBase', 'cambiarAccesoInscripcion'];
 
   const M = window.M = { estado: { token: null, sesion: null, versionId: null }, CONTRATO: CONTRATO, ESPERA_MAX_MS: 40000 };
   const app = () => document.getElementById('app');
@@ -59,6 +59,7 @@
     } finally { if (reloj) clearTimeout(reloj); }
     if (!j.ok) {
       if (/sesión venció|Debes ingresar/.test(j.error || '') && accion !== 'miSesion') { M.salir(true); }
+      else if (/^Tu acceso a Metis/.test(j.error || '') && M.estado.token) { M.salir(true, j.error); }
       throw new Error(j.error || 'Error desconocido.');
     }
     return j.data;
@@ -359,14 +360,14 @@
     $('#z-salir').addEventListener('click', () => { M.salir(false); vistaLogin(); });
   }
 
-  M.salir = function (vencida) {
+  M.salir = function (vencida, texto) {
     const t = M.estado.token;
     M.limpiarRelojes();
     M.estado = { token: null, sesion: null, versionId: null };
     guardar('metis_token', null);
     if (location.hash) history.replaceState(null, '', location.pathname);
     if (t && !vencida) fetch(CFG.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ accion: 'cerrarSesion', token: t }) }).catch(() => {});
-    if (vencida) vistaLogin({ texto: 'Tu sesión venció. Vuelve a ingresar.', tipo: 'aviso' });
+    if (vencida) vistaLogin({ texto: texto || 'Tu sesión venció. Vuelve a ingresar.', tipo: 'aviso' });
   };
 
   /* ---------- Relojes: se limpian en cada cambio de vista ---------- */

@@ -557,3 +557,4 @@ td.ro{padding:8px 10px;font-size:.88rem;vertical-align:top;white-space:normal;mi
 .paso-cab{display:flex;gap:6px;align-items:center}
 .paso-cab input{flex:1}
 @media (max-width:720px){.dp-cuerpo{padding-left:12px}}
+.acc-bloque{display:grid;gap:8px;border-top:1px dashed var(--borde);padding-top:10px}
