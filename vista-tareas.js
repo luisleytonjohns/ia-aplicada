@@ -20,6 +20,19 @@
   ];
   const ESCALA = [[1, 'Aún no'], [2, 'En proceso'], [3, 'Logrado'], [4, 'Lo puedo enseñar']];
   const BENCH = [['nombre', 'Solución'], ['enlace', 'Enlace'], ['que_resuelve', 'Qué resuelve'], ['costo', 'Costo o plan gratuito'], ['limitaciones', 'Limitaciones']];
+  // Cómo se responde cada tipo de tarea en Metis. Se muestra sobre el editor.
+  const COMO = {
+    texto: 'Escribe directo en el recuadro. El contador de abajo indica si alcanzas el mínimo de palabras.',
+    prompt: 'Indica la herramienta, pega tu prompt completo y la respuesta de la IA, y explica cómo verificaste lo que dijo. La verificación es la parte que más pesa.',
+    tabla: 'Escribe en cada celda. Usa «Agregar fila» si necesitas más. La tarea pide un mínimo de filas completas.',
+    toulmin: 'Completa cada parte del argumento. Respaldo y calificador son opcionales; las otras cuatro son obligatorias.',
+    enlace: 'Pega el enlace y ábrelo en una ventana de incógnito: si a ti te pide permiso, al docente también se lo pedirá.',
+    archivo: 'Sube un archivo de hasta 5 MB. Si pesa más, súbelo a tu Drive, compártelo y deja el enlace en el comentario.',
+    benchmarking: 'Completa una ficha por solución y agrega las que falten. Al final marca tu decisión y escribe la declaración de diferenciación.',
+    mermaid: 'Pega el código que te dio la IA y presiona «Ver diagrama». Si aparece un error, cópialo y pídele a la IA que lo corrija.',
+    cierre: 'Marca una opción por objetivo y responde las tres preguntas. Es obligatoria para dar por completada la sesión.'
+  };
+  T.COMO = COMO;
 
   /* ---------- Editores por tipo: HTML y lectura ---------- */
   const area = (c, valor, filas, ph, dis, mono) => '<textarea data-c="' + c + '" rows="' + (filas || 4) + '"' + (ph ? ' placeholder="' + esc(ph) + '"' : '') + (dis ? ' disabled' : '') + (mono ? ' class="mono"' : '') + '>' + esc(valor || '') + '</textarea>';
@@ -27,11 +40,14 @@
   const campo = (etq, ayuda, control) => '<div class="campo"><label>' + esc(etq) + '</label>' + control + (ayuda ? '<span class="ayuda">' + esc(ayuda) + '</span>' : '') + '</div>';
 
   function filaTabla(cols, f, dis) {
+    // En modo lectura las celdas son texto, para que se lea completo.
+    if (dis) return '<tr>' + cols.map((c, j) => '<td class="ro" data-celda-ro="' + j + '">' + esc((f || [])[j] || '') + '</td>').join('') + '</tr>';
     return '<tr>' + cols.map((c, j) => '<td><input type="text" data-celda="' + j + '" value="' + esc((f || [])[j] || '') + '"' + (dis ? ' disabled' : '') + '></td>').join('') +
       (dis ? '' : '<td class="quitar"><button class="btn t peq" type="button" data-quitar-fila title="Quitar fila">✕</button></td>') + '</tr>';
   }
   function filaBench(x, dis) {
     x = x || {};
+    if (dis) return '<div class="bench-sol ro">' + BENCH.map(b => '<div><span>' + b[1] + '</span><p>' + (esc(x[b[0]] || '') || '·') + '</p></div>').join('') + '</div>';
     return '<div class="bench-sol">' + BENCH.map(b => '<label><span>' + b[1] + '</span><input type="text" data-b="' + b[0] + '" value="' + esc(x[b[0]] || '') + '"' + (dis ? ' disabled' : '') + '></label>').join('') +
       (dis ? '' : '<button class="btn t peq" type="button" data-quitar-sol>Quitar</button>') + '</div>';
   }
@@ -161,6 +177,8 @@
       } catch (e) { est.innerHTML = '<span style="color:var(--mal)">' + esc(e.message) + '</span>'; }
       finally { fa.disabled = false; fa.value = ''; }
     });
+    // En modo lectura los textos se muestran completos, sin barra de desplazamiento.
+    if (dis) el.querySelectorAll('textarea').forEach(a => { a.style.height = '0px'; a.style.height = (a.scrollHeight + 4) + 'px'; });
     if (t.tipo === 'mermaid' && dis) { const cod = el.querySelector('[data-c="codigo"]'); if (cod && cod.value.trim()) T.dibujar(cod.value, el.querySelector('[data-diagrama]')); }
   }
   T.activarLectura = (t, el) => activarEditor(t, el, null, true);
@@ -188,7 +206,8 @@
       if (p.asistencia && ['presente', 'atrasado', 'justificado'].indexOf(p.asistencia.estado) >= 0)
         cab = '<div class="asis-ok"><span class="chip ok">Asistencia: ' + esc(p.asistencia.estado) + (p.asistencia.hora ? ' · ' + esc(p.asistencia.hora) : '') + '</span><small>Plazo para completar: hoy hasta las 23:59.</small></div>';
       else if (p.registrar)
-        cab = '<form class="asis-form" id="asis-form" novalidate><div><b>Registra tu asistencia</b><p class="sub" style="margin:0">Escribe el código de 4 dígitos que muestra el docente. Cambia cada minuto.</p></div>' +
+        cab = '<form class="asis-form" id="asis-form" novalidate><div><b>Registra tu asistencia</b><p class="sub" style="margin:0">Escribe el código de 4 dígitos que el docente proyecta en la sala. Cambia cada minuto.</p>' +
+          '<details class="guia-mini"><summary>¿Cómo funciona?</summary><p>Ejemplo: en la pantalla aparece <b>4821</b>. Lo escribes aquí y presionas Registrar. Si el número cambia mientras escribes, no importa: el código anterior sigue sirviendo un minuto más. Al registrarte se despliegan las actividades de la sesión. Si llegas después de la tolerancia quedas como atrasado, pero puedes trabajar igual.</p></details></div>' +
           '<div class="asis-campos"><input id="asis-codigo" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="0000" aria-label="Código de asistencia"><button class="btn p" type="submit">Registrar</button></div><div id="asis-msg"></div></form>';
     }
     const aviso = p.motivo && !(cab && p.registrar) ? '<div class="msg ' + (p.editar ? 'info' : 'aviso') + '">' + esc(p.motivo) + '</div>' : '';
@@ -210,6 +229,7 @@
     }
     cont.innerHTML = '<h2>Actividades de la sesión</h2>' + cab + aviso +
       (tareas.length ? tareas.map((t, i) => tarjeta(t, i, resp[t.id], !p.editar, p.enviar)).join('') : '<p class="sub">Las actividades aparecerán aquí.</p>');
+    T.activarEjemplos(cont, tareas);
 
     const fa = $('#asis-form', cont);
     if (fa) fa.addEventListener('submit', async ev => {
@@ -245,13 +265,37 @@
   function tarjeta(t, i, r, dis, puedeEnviar) {
     return '<article class="tarea" data-tarea="' + esc(t.id) + '"><header><div><span class="lema">' + (t.tipo === 'cierre' ? 'Cierre' : 'Tarea ' + (i + 1)) + ' · ' + esc(TIPOS[t.tipo] || t.tipo) + (t.minutos ? ' · unos ' + t.minutos + ' min' : '') + '</span>' +
       '<h3>' + esc(t.titulo) + '</h3></div><span data-estado>' + chipEstado(r) + '</span></header>' +
+      (t.explicacion ? '<div class="explica"><span class="etq">Qué es y para qué sirve</span><p>' + esc(t.explicacion) + '</p></div>' : '') +
       (t.consigna ? '<div class="consigna">' + esc(t.consigna) + '</div>' : '') +
       (t.criterio ? '<p class="criterio"><b>Cómo se revisa:</b> ' + esc(t.criterio) + '</p>' : '') +
+      ejemploHTML(t) +
+      (COMO[t.tipo] && !dis ? '<p class="como"><b>Cómo responder aquí:</b> ' + esc(COMO[t.tipo]) + ' Se guarda solo mientras escribes' + (puedeEnviar ? '; cuando termines, presiona Enviar. Puedes mejorarla y volver a enviarla hasta las 23:59.' : '.') + '</p>' : '') +
       '<div class="editor">' + T.editorHTML(t, r ? r.contenido : {}, dis) + '</div>' +
       (dis ? '' : '<footer><small data-guardado>' + (r ? 'Guardado ' + esc((r.actualizado || '').slice(11, 16)) : 'Se guarda solo mientras escribes') + '</small>' +
         (puedeEnviar ? '<button class="btn p" type="button" data-enviar>' + (r && r.estado === 'enviada' ? 'Volver a enviar' : 'Enviar') + '</button>' : '') + '</footer><div data-msg></div>') +
       '</article>';
   }
+
+  /* ---------- Ejemplo resuelto: mismo editor, en modo lectura ---------- */
+  // Se dibuja con un id distinto para que sus opciones no se mezclen con las del editor real.
+  const tareaEj = t => Object.assign({}, t, { id: t.id + '-ej' });
+  function ejemploHTML(t) {
+    const e = t.ejemplo;
+    if (!e || typeof e !== 'object') return '';
+    const nota = e._nota ? '<p class="ej-nota"><b>Por qué es un buen ejemplo:</b> ' + esc(e._nota) + '</p>' : '';
+    return '<details class="ejemplo" data-ejemplo><summary>Ver ejemplo resuelto · Distribuidora Los Aromos</summary>' +
+      '<div class="ej-cuerpo"><p class="sub">Caso ficticio del curso. Úsalo como guía de forma y profundidad, no como respuesta para copiar: tu tarea es sobre tu organización.</p>' +
+      '<div class="editor-ej">' + T.editorHTML(tareaEj(t), e, true) + '</div>' + nota + '</div></details>';
+  }
+  /** Activa los ejemplos de un contenedor: el diagrama se dibuja solo al abrirlo. */
+  T.activarEjemplos = function (cont, tareas) {
+    cont.querySelectorAll('[data-tarea]').forEach(tj => {
+      const d = tj.querySelector('[data-ejemplo]'); if (!d) return;
+      const t = tareas.find(x => x.id === tj.dataset.tarea); if (!t) return;
+      let listo = false;
+      d.addEventListener('toggle', () => { if (d.open && !listo) { listo = true; T.activarLectura(tareaEj(t), d.querySelector('.editor-ej')); } });
+    });
+  };
 
   /* ---------- Docente: ver una respuesta ---------- */
   T.verRespuesta = async function (respuestaId) {
@@ -270,7 +314,7 @@
     const s = await M.api('verSesionDocente', { sesion_id: sesionId });
     const propias = (s.tareas || []).filter(t => t.tipo !== 'cierre');
     const m = M.modal('Sesión ' + s.numero + ' · Tareas',
-      '<p class="sub">Las tareas se muestran al estudiante en este orden. La actividad de cierre se agrega sola al final de cada sesión, con la autoevaluación de los objetivos.</p>' +
+      '<p class="sub">Las tareas se muestran al estudiante en este orden. Cada una puede llevar una explicación del concepto y un ejemplo resuelto, que el estudiante abre con «Ver ejemplo resuelto». La actividad de cierre se agrega sola al final de cada sesión, con su propia explicación y ejemplo.</p>' +
       '<div id="te-lista" style="display:grid;gap:12px"></div><div><button class="btn s" type="button" id="te-mas">Agregar tarea</button></div><div id="te-msg"></div>',
       '<button class="btn s" type="button" data-cerrar>Cancelar</button><button class="btn p" type="button" id="te-ok">Guardar tareas</button>');
     m.el.querySelector('.modal').classList.add('ancho');
@@ -284,6 +328,9 @@
         '<div class="campo"><label>Minutos sugeridos</label><input type="number" min="0" max="180" data-f="minutos" value="' + esc(t.minutos || '') + '"></div></div>' +
         '<div class="campo"><label>Consigna</label><textarea data-f="consigna" rows="4" placeholder="Qué debe hacer, paso a paso.">' + esc(t.consigna || '') + '</textarea></div>' +
         '<div class="campo"><label>Cómo se revisa</label><input type="text" data-f="criterio" value="' + esc(t.criterio || '') + '" placeholder="Criterio de la pauta de cotejo o de la rúbrica"></div>' +
+        '<div class="campo"><label>Qué es y para qué sirve</label><textarea data-f="explicacion" rows="3" placeholder="Explica el concepto con palabras simples, para alguien que lo ve por primera vez.">' + esc(t.explicacion || '') + '</textarea></div>' +
+        '<details class="ejemplo te-ej"><summary>Ejemplo resuelto' + (t.ejemplo ? ' · tiene ejemplo' : ' · sin ejemplo') + '</summary><div class="ej-cuerpo"><p class="sub">Complétalo como lo haría un estudiante. Se muestra en modo lectura dentro de la tarea.</p><div data-ej-zona></div>' +
+        '<div class="campo"><label>Por qué es un buen ejemplo</label><textarea data-f="ej_nota" rows="2">' + esc((t.ejemplo && t.ejemplo._nota) || '') + '</textarea></div></div></details>' +
         '<div class="fila te-config">' +
         '<div class="campo" data-solo="tabla"><label>Columnas de la tabla</label><input type="text" data-f="columnas" value="' + esc((c.columnas || []).join(', ')) + '" placeholder="Problema, Impacto, Frecuencia"><span class="ayuda">Separadas por comas, hasta 8.</span></div>' +
         '<div class="campo" data-solo="tabla"><label>Filas mínimas</label><input type="number" min="1" max="30" data-f="filas_min" value="' + esc(c.filas_min || 1) + '"></div>' +
@@ -292,7 +339,32 @@
         '</div><div class="acciones"><button class="btn t peq" type="button" data-sube>Subir</button><button class="btn t peq" type="button" data-baja>Bajar</button><button class="btn t peq" type="button" data-quita>Quitar</button></div>';
       const sel = d.querySelector('[data-f="tipo"]');
       const ver = () => d.querySelectorAll('[data-solo]').forEach(x => { x.style.display = x.dataset.solo === sel.value ? '' : 'none'; });
-      sel.onchange = ver; ver();
+      // Ejemplo: se edita con el mismo editor del estudiante; si cambian el tipo o las columnas, se vuelve a dibujar.
+      const zona = d.querySelector('[data-ej-zona]');
+      const tEj = () => ({ id: 'te-' + Math.random().toString(36).slice(2, 8), tipo: sel.value, config: { columnas: (d.querySelector('[data-f="columnas"]').value || '').split(',').map(x => x.trim()).filter(Boolean) } });
+      const pintarEj = c => {
+        const te = tEj(); d._tEj = te;
+        const caja = document.createElement('div'); caja.className = 'editor-ej';
+        caja.innerHTML = te.tipo === 'archivo'
+          ? campo('Nombre del archivo de ejemplo', '', linea('nombre', (c || {}).nombre, 'Informe_LosAromos.pdf')) + campo('Qué contiene', '', area('nota', (c || {}).nota, 4))
+          : T.editorHTML(te, c || {}, false);
+        zona.innerHTML = ''; zona.appendChild(caja);
+        if (te.tipo !== 'archivo') activarEditor(te, caja, null, false);
+      };
+      d._leerEj = () => {
+        const caja = zona.querySelector('.editor-ej'); if (!caja) return null;
+        const c = d._tEj.tipo === 'archivo' ? { archivo_id: 'ejemplo', nombre: (caja.querySelector('[data-c="nombre"]') || {}).value || '', nota: (caja.querySelector('[data-c="nota"]') || {}).value || '' } : T.leer(d._tEj, caja);
+        if (d._tEj.tipo === 'archivo' && !c.nombre && !c.nota) return null;
+        const nota = d.querySelector('[data-f="ej_nota"]').value.trim();
+        if (nota) c._nota = nota;
+        return c;
+      };
+      const ej0 = t.ejemplo ? Object.assign({}, t.ejemplo) : {};
+      delete ej0._nota;
+      pintarEj(ej0);
+      sel.onchange = () => { ver(); pintarEj({}); };
+      d.querySelector('[data-f="columnas"]').addEventListener('change', () => pintarEj(d._leerEj() || {}));
+      ver();
       d.querySelector('[data-sube]').onclick = () => { if (d.previousElementSibling) lista.insertBefore(d, d.previousElementSibling); };
       d.querySelector('[data-baja]').onclick = () => { if (d.nextElementSibling) lista.insertBefore(d.nextElementSibling, d); };
       d.querySelector('[data-quita]').onclick = () => d.remove();
@@ -305,6 +377,7 @@
       const tareas = Array.from(lista.querySelectorAll('.tarea-ed')).map(d => {
         const f = k => (d.querySelector('[data-f="' + k + '"]') || {}).value || '';
         return { id: d.dataset.id, tipo: f('tipo'), titulo: f('titulo'), consigna: f('consigna'), minutos: f('minutos'), criterio: f('criterio'),
+          explicacion: f('explicacion'), ejemplo: d._leerEj(),
           config: { columnas: f('columnas').split(',').map(x => x.trim()).filter(Boolean), filas_min: f('filas_min'), min_palabras: f('min_palabras'), min_soluciones: f('min_soluciones') } };
       });
       await M.ocupado(ev.currentTarget, async () => {

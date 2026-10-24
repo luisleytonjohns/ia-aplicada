@@ -313,13 +313,17 @@
     const semanas = {};
     r.sesiones.forEach(s => { (semanas[s.semana] = semanas[s.semana] || []).push(s); });
     const doce = r.sesiones.length === 12;
-    p.innerHTML = (doce ? '<div class="plan-base"><div><b>Planificación base del curso</b><p class="sub" style="margin:0">Carga las actividades de las doce sesiones con su consigna, minutos y criterio. No toca las sesiones que ya tienen actividades. También puedes actualizar títulos y objetivos a la última planificación sin perder fechas ni materiales.</p></div>' +
-        '<div class="acciones"><button class="btn p peq" type="button" id="s-tareas-base">Cargar tareas base</button><button class="btn s peq" type="button" id="s-plan-base">Actualizar títulos y objetivos</button></div></div>' : '') +
+    p.innerHTML = (doce ? '<div class="plan-base"><div><b>Planificación base del curso</b><p class="sub" style="margin:0">Carga las actividades de las doce sesiones con su consigna, minutos, criterio, explicación y ejemplo resuelto de Los Aromos. No toca las sesiones que ya tienen actividades. Si cargaste las tareas antes de que existieran los ejemplos, usa «Completar explicaciones y ejemplos»: solo llena lo que está vacío. También puedes actualizar títulos y objetivos sin perder fechas ni materiales.</p></div>' +
+        '<div class="acciones"><button class="btn p peq" type="button" id="s-tareas-base">Cargar tareas base</button><button class="btn s peq" type="button" id="s-guias-base">Completar explicaciones y ejemplos</button><button class="btn s peq" type="button" id="s-plan-base">Actualizar títulos y objetivos</button></div></div>' : '') +
       '<div class="msg info" style="margin-top:16px">Oculta: el estudiante no la ve. Visible: ve objetivos y ruta, sin trabajar. Abierta: puede trabajar si registró asistencia. Cerrada: solo lectura. Los materiales, el control y la entrega se abren por separado. El observador ve todo como visible.</div><div id="s-msg"></div>' +
       Object.keys(semanas).sort((a, b) => a - b).map(w => '<div class="semana-cab"><h3 class="semana-t" style="margin:0">Semana ' + w + '</h3><div class="acciones">' +
         ['oculta:Ocultar', 'visible:Hacer visible', 'abierta:Abrir', 'cerrada:Cerrar'].map(x => { const [e, t] = x.split(':'); return '<button class="btn s peq" type="button" data-semana="' + w + '" data-estado="' + e + '">' + t + ' semana</button>'; }).join('') + '</div></div>' +
         '<div class="tabla"><table><thead><tr><th>Nº</th><th>Sesión</th><th>Estado</th><th>Habilitado</th><th></th></tr></thead><tbody>' + semanas[w].map(filaSesion).join('') + '</tbody></table></div>').join('');
-    const bt = $('#s-tareas-base'), bp = $('#s-plan-base');
+    const bt = $('#s-tareas-base'), bp = $('#s-plan-base'), bg = $('#s-guias-base');
+    if (bg) bg.onclick = () => M.ocupado(bg, async () => {
+      try { const x = await M.api('completarGuiasBase', { version_id: v.id }); await irA('sesiones', true); M.msg('#s-msg', (x.completadas === 1 ? 'Se completó 1 actividad' : 'Se completaron ' + x.completadas + ' actividades') + ' con su explicación y su ejemplo.' + (x.sin_guia ? ' ' + x.sin_guia + (x.sin_guia === 1 ? ' actividad propia no tiene' : ' actividades propias no tienen') + ' guía base: puedes escribirla en «Tareas».' : ''), 'ok'); }
+      catch (e) { M.msg('#s-msg', e.message, 'mal'); }
+    });
     if (bt) bt.onclick = () => M.ocupado(bt, async () => {
       try { const x = await M.api('cargarTareasBase', { version_id: v.id }); await irA('sesiones', true); M.msg('#s-msg', 'Se cargaron ' + x.tareas + ' actividades en ' + x.sesiones + ' sesiones.' + (x.omitidas === 1 ? ' Se respetó 1 sesión que ya tenía actividades.' : x.omitidas ? ' Se respetaron ' + x.omitidas + ' sesiones que ya tenían actividades.' : ''), 'ok'); }
       catch (e) { M.msg('#s-msg', e.message, 'mal'); }
