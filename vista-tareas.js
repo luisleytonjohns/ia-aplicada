@@ -192,8 +192,24 @@
           '<div class="asis-campos"><input id="asis-codigo" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="0000" aria-label="Código de asistencia"><button class="btn p" type="submit">Registrar</button></div><div id="asis-msg"></div></form>';
     }
     const aviso = p.motivo && !(cab && p.registrar) ? '<div class="msg ' + (p.editar ? 'info' : 'aviso') + '">' + esc(p.motivo) + '</div>' : '';
-    cont.innerHTML = '<h2>Tareas de la sesión</h2>' + cab + aviso +
-      (tareas.length ? tareas.map((t, i) => tarjeta(t, i, resp[t.id], !p.editar, p.enviar)).join('') : '<p class="sub">Las tareas aparecerán aquí.</p>');
+    // Antes de la asistencia las actividades no se despliegan: solo cuántas son y cuánto toman.
+    if (tareas.some(t => t.bloqueada)) {
+      const min = tareas.reduce((a, t) => a + (Number(t.minutos) || 0), 0);
+      cont.innerHTML = '<h2>Actividades de la sesión</h2>' + cab + aviso +
+        '<div class="bloqueadas"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg><div><b>' + tareas.length + (tareas.length === 1 ? ' actividad' : ' actividades') + (min ? ', unos ' + min + ' minutos de trabajo' : '') + '</b>' +
+        '<p class="sub" style="margin:0">Se despliegan en clase, cuando registras tu asistencia. Antes de la sesión, revisa los materiales de arriba: son la lectura previa.</p></div></div>';
+      const fb = $('#asis-form', cont);
+      if (fb) fb.addEventListener('submit', async ev => {
+        ev.preventDefault();
+        await M.ocupado(fb.querySelector('button'), async () => {
+          try { await M.api('registrarAsistencia', { sesion_id: s.id, codigo: $('#asis-codigo', cont).value }); M.ir(location.hash); }
+          catch (e) { M.msg($('#asis-msg', cont), e.message, 'mal'); }
+        });
+      });
+      return;
+    }
+    cont.innerHTML = '<h2>Actividades de la sesión</h2>' + cab + aviso +
+      (tareas.length ? tareas.map((t, i) => tarjeta(t, i, resp[t.id], !p.editar, p.enviar)).join('') : '<p class="sub">Las actividades aparecerán aquí.</p>');
 
     const fa = $('#asis-form', cont);
     if (fa) fa.addEventListener('submit', async ev => {

@@ -108,7 +108,7 @@
       p.innerHTML = '<div class="tarjeta" style="margin-top:16px"><h2>Hoy no hay clase</h2>' +
         (!r.sesiones.length ? '<p class="sub">Esta versión aún no tiene sesiones. Créalas en la pestaña Sesiones.</p><div><a class="btn p" href="#d/sesiones">Ir a sesiones</a></div>'
           : prox ? '<p class="sub">La próxima es la <b>sesión ' + prox.numero + ' · ' + esc(prox.titulo) + '</b>, el ' + esc(M.fechaLarga(prox.fecha)) + (S.horaDe(prox, v) ? ' a las ' + esc(S.horaDe(prox, v)) : '') + '. Estado: ' + S.chipEstado(prox.estado) + '</p>' +
-            '<p class="sub">Antes de esa clase: publica los materiales y deja la sesión visible para que los estudiantes vean objetivos y ruta.</p><div><a class="btn s" href="#d/sesiones">Ir a sesiones</a></div>'
+            '<p class="sub">' + (v.apertura_lunes && prox.abre_el ? 'Sus materiales se abren solos para los estudiantes el ' + esc(M.fechaLarga(prox.abre_el)) + ', junto con las demás sesiones de esa semana. Revisa antes que estén cargados.' : 'Antes de esa clase: publica los materiales y deja la sesión visible para que los estudiantes vean objetivos y ruta.') + '</p><div><a class="btn s" href="#d/sesiones">Ir a sesiones</a></div>'
           : '<p class="sub">Ninguna sesión tiene fecha cargada. Agrega las fechas en Sesiones, con el botón Editar de cada una, para que este panel te acompañe durante la clase.</p><div><a class="btn s" href="#d/sesiones">Ir a sesiones</a></div>') + '</div>';
       return;
     }
@@ -127,7 +127,9 @@
     const conControl = Number(v.sesiones) === 12 && CONTROLES_BASE.indexOf(s.numero) >= 0;
     const items = [
       { m: 'inicio', t: 'Abre la sesión para que los estudiantes puedan trabajar', hecho: s.estado === 'abierta' || s.estado === 'cerrada', accion: s.estado !== 'abierta' && s.estado !== 'cerrada' ? 'estado:abierta' : '', btn: 'Abrir sesión' },
-      { m: 'inicio', t: 'Publica los materiales de la sesión', hecho: s.materiales_visibles, accion: !s.materiales_visibles ? 'apertura:materiales_visibles' : '', btn: 'Publicar materiales' },
+      (v.apertura_lunes && s.abre_el && S.hoy() >= s.abre_el)
+        ? { m: 'inicio', t: 'Los materiales se abrieron solos el lunes ' + M.fechaCorta(s.abre_el), hecho: true }
+        : { m: 'inicio', t: 'Publica los materiales de la sesión', hecho: s.materiales_visibles, accion: !s.materiales_visibles ? 'apertura:materiales_visibles' : '', btn: 'Publicar materiales' },
       { m: 'inicio', t: 'Proyecta el código de asistencia', nota: 'Cambia cada minuto. Se puede registrar toda la clase; después de la tolerancia queda como atraso.', ver: 'codigo', btn: 'Mostrar código' },
       conControl ? { m: 'inicio', t: 'Abre el control de lectura', hecho: s.control_abierto, accion: !s.control_abierto ? 'apertura:control_abierto' : '', btn: 'Abrir control' } : null,
       { m: 'inicio', t: 'Presenta los objetivos: "En esta sesión aprenderás a…"' },
@@ -275,7 +277,8 @@
     const m = M.modal(v.id ? 'Editar versión' : 'Nueva versión del curso',
       '<fieldset><legend>Institución</legend><div class="fila">' + c('institucion', 'Institución *') + c('escuela', 'Escuela o facultad') + '</div>' + c('logo_url', 'Logo de la institución', 'url', 'Dirección https de la imagen. Opcional.') + '</fieldset>' +
       '<fieldset><legend>Asignatura</legend>' + c('asignatura', 'Nombre de la asignatura *') + '<div class="fila">' + c('codigo', 'Código') + c('periodo', 'Periodo', 'text', 'Ejemplo: Verano') + c('anio', 'Año *', 'number') + c('fecha_inicio', 'Fecha de inicio', 'date') + '</div></fieldset>' +
-      '<fieldset><legend>Estructura</legend><div class="fila">' + c('sesiones', 'Sesiones', 'number') + c('sesiones_semana', 'Sesiones por semana', 'number') + c('minutos', 'Minutos por sesión', 'number', 'Desde la apertura, incluido el recreo de 15 minutos.') + c('hora_inicio', 'Hora de inicio habitual', 'text', 'Formato 18:50. Cada sesión puede tener otra.') + '</div></fieldset>' +
+      '<fieldset><legend>Estructura</legend><div class="fila">' + c('sesiones', 'Sesiones', 'number') + c('sesiones_semana', 'Sesiones por semana', 'number') + c('minutos', 'Minutos por sesión', 'number', 'Desde la apertura, incluido el recreo de 15 minutos.') + c('hora_inicio', 'Hora de inicio habitual', 'text', 'Formato 18:50. Cada sesión puede tener otra.') + '</div>' +
+        '<label class="check"><input type="checkbox" id="v-apertura_lunes"' + (v.apertura_lunes !== false ? ' checked' : '') + '><span>Apertura semanal: el lunes de cada semana se abren solas las sesiones de esa semana y sus materiales, para la lectura previa. Las actividades se despliegan en clase, con la asistencia.</span></label></fieldset>' +
       '<fieldset><legend>Reglas</legend><div class="fila">' + c('asistencia_min', 'Asistencia mínima (%)', 'number') + c('tolerancia_min', 'Tolerancia de llegada (min)', 'number', 'Después de estos minutos, la asistencia queda como atraso.') + c('defensas_sesion', 'Defensas por sesión', 'number') + c('exigencia', 'Exigencia (%)', 'number') + '</div>' +
       c('whatsapp', 'Link del grupo de WhatsApp', 'url', 'Opcional.') +
       '<div class="campo"><label for="v-estado">Estado</label><select id="v-estado"><option value="activa"' + (v.estado !== 'archivada' ? ' selected' : '') + '>Activa</option><option value="archivada"' + (v.estado === 'archivada' ? ' selected' : '') + '>Archivada</option></select></div></fieldset><div id="v-msg"></div>',
@@ -284,6 +287,7 @@
       const d = { id: v.id };
       ['institucion', 'escuela', 'logo_url', 'asignatura', 'codigo', 'periodo', 'anio', 'fecha_inicio', 'sesiones', 'sesiones_semana', 'minutos', 'hora_inicio', 'asistencia_min', 'tolerancia_min', 'defensas_sesion', 'exigencia', 'whatsapp', 'estado']
         .forEach(k => { d[k] = $('#v-' + k, m.el).value; });
+      d.apertura_lunes = $('#v-apertura_lunes', m.el).checked;
       await M.ocupado(ev.currentTarget, async () => {
         try { const g = await M.api('guardarVersion', d); D.versionId = g.id; recordar(); m.cerrar(); await M.conVelo(async () => { await cargarVersiones(); pintarResumen(); await irA('versiones', true); }); }
         catch (e) { M.msg($('#v-msg', m.el), e.message, 'mal'); }
@@ -325,7 +329,10 @@
 
   function filaSesion(s) {
     const sw = (campo, txt) => '<label class="interruptor"><input type="checkbox" data-apertura="' + campo + '" data-id="' + esc(s.id) + '"' + (s[campo] ? ' checked' : '') + '>' + txt + '</label>';
-    return '<tr><td><b>' + s.numero + '</b></td><td><b>' + esc(s.titulo) + '</b><br><small style="color:var(--pizarra)">' + esc([s.fecha ? M.fechaCorta(s.fecha) : 'Sin fecha', s.hora, s.unidad, s.n_objetivos + ' objetivos', s.n_materiales + ' materiales', s.defensa ? 'con defensa' : ''].filter(Boolean).join(' · ')) + '</small></td>' +
+    const v = versionActual() || {};
+    const auto = v.apertura_lunes && s.abre_el ? (window.Sesiones.hoy() >= s.abre_el ? 'abierta para estudiantes desde el ' + M.fechaCorta(s.abre_el) : 'se abre el ' + M.fechaCorta(s.abre_el)) : '';
+    return '<tr><td><b>' + s.numero + '</b></td><td><b>' + esc(s.titulo) + '</b><br><small style="color:var(--pizarra)">' + esc([s.fecha ? M.fechaCorta(s.fecha) : 'Sin fecha', s.hora, s.unidad, s.n_objetivos + ' objetivos', s.n_materiales + ' materiales', s.defensa ? 'con defensa' : ''].filter(Boolean).join(' · ')) + '</small>' +
+      (auto && s.estado === 'oculta' ? '<br><small style="color:var(--turquesa-t)">Apertura semanal: ' + esc(auto) + '</small>' : '') + '</td>' +
       '<td><select class="estado" data-id="' + esc(s.id) + '">' + ['oculta', 'visible', 'abierta', 'cerrada'].map(e => '<option value="' + e + '"' + (s.estado === e ? ' selected' : '') + '>' + window.Sesiones.ESTADOS[e][0] + '</option>').join('') + '</select></td>' +
       '<td><div style="display:grid;gap:4px">' + sw('materiales_visibles', 'Materiales') + sw('control_abierto', 'Control de lectura') + sw('entrega_abierta', 'Entrega') + '</div></td>' +
       '<td><div class="acciones"><button class="btn s peq" type="button" data-editar-sesion="' + esc(s.id) + '">Editar</button><button class="btn s peq" type="button" data-vista="tareas" data-id="' + esc(s.id) + '">Tareas</button>' +

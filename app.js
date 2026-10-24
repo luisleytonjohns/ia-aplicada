@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const CFG = window.METIS_CONFIG || {};
-  const VERSION_INTERFAZ = '0.5.1';
+  const VERSION_INTERFAZ = '0.6.0';
 
   // Acciones que esta interfaz usa. Se comparan con las del servicio para detectar desajustes.
   const CONTRATO = ['ping', 'loginGoogle', 'loginClave', 'infoRegistro', 'registrarConGoogle', 'registrarConClave',
@@ -538,7 +538,7 @@
       if (s.estado === 'abierta' && ASISTIO(s.asistencia) && s.fecha >= hoy && s.n_enviadas < s.n_tareas)
         items.push({ c: 'naranja', t: 'Tareas por enviar: ' + (s.n_tareas - s.n_enviadas) + ' de ' + s.n_tareas, r: ref, d: (s.cierre_enviado ? '' : 'Incluye la actividad de cierre · ') + 'Plazo: ' + (s.fecha === hoy ? 'hoy' : M.fechaCorta(s.fecha)) + ' hasta las 23:59', href: href });
       if (s.control_abierto) items.push({ c: 'cobalto', t: 'Control de lectura disponible', r: ref, d: 'Respóndelo durante la clase', href: href });
-      if (s.materiales_visibles && s.n_materiales && (!s.fecha || s.fecha >= hoy)) items.push({ c: 'turquesa', t: 'Materiales para revisar', r: ref, d: s.n_materiales + (s.n_materiales === 1 ? ' material' : ' materiales'), href: href });
+      if (s.materiales_visibles && s.n_materiales && (!s.fecha || s.fecha >= hoy)) items.push({ c: 'turquesa', t: 'Lectura previa', r: ref, d: s.n_materiales + (s.n_materiales === 1 ? ' material' : ' materiales') + (s.fecha ? ' · antes de la clase del ' + M.fechaCorta(s.fecha) : ''), href: href });
     });
     if (!items.length) return '<p class="sub">No tienes pendientes por ahora. Las tareas y controles aparecerán aquí cuando el docente los abra.</p>';
     return '<ul class="pendientes">' + items.map(i => '<li class="' + i.c + '"><a href="' + esc(i.href) + '"><b>' + esc(i.t) + '</b><span>' + esc(i.r) + '</span><small>' + esc(i.d) + '</small></a></li>').join('') + '</ul>';
