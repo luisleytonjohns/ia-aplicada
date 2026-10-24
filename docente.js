@@ -313,15 +313,15 @@
     const semanas = {};
     r.sesiones.forEach(s => { (semanas[s.semana] = semanas[s.semana] || []).push(s); });
     const doce = r.sesiones.length === 12;
-    p.innerHTML = (doce ? '<div class="plan-base"><div><b>Planificación base del curso</b><p class="sub" style="margin:0">Carga las actividades de las doce sesiones con su consigna, minutos, criterio, explicación y ejemplo resuelto de Los Aromos. No toca las sesiones que ya tienen actividades. Si cargaste las tareas antes de que existieran los ejemplos, usa «Completar explicaciones y ejemplos»: solo llena lo que está vacío. También puedes actualizar títulos y objetivos sin perder fechas ni materiales.</p></div>' +
-        '<div class="acciones"><button class="btn p peq" type="button" id="s-tareas-base">Cargar tareas base</button><button class="btn s peq" type="button" id="s-guias-base">Completar explicaciones y ejemplos</button><button class="btn s peq" type="button" id="s-plan-base">Actualizar títulos y objetivos</button></div></div>' : '') +
+    p.innerHTML = (doce ? '<div class="plan-base"><div><b>Planificación base del curso</b><p class="sub" style="margin:0">Carga las actividades de las doce sesiones con su consigna, minutos, criterio, explicación y ejemplo resuelto de Los Aromos. No toca las sesiones que ya tienen actividades. Cada sesión trae además su demostración del caso. Si cargaste las tareas o generaste las sesiones antes de que existieran los ejemplos y las demostraciones, usa «Completar guías y demostraciones»: solo llena lo que está vacío. También puedes actualizar títulos y objetivos sin perder fechas ni materiales.</p></div>' +
+        '<div class="acciones"><button class="btn p peq" type="button" id="s-tareas-base">Cargar tareas base</button><button class="btn s peq" type="button" id="s-guias-base">Completar guías y demostraciones</button><button class="btn s peq" type="button" id="s-plan-base">Actualizar títulos y objetivos</button></div></div>' : '') +
       '<div class="msg info" style="margin-top:16px">Oculta: el estudiante no la ve. Visible: ve objetivos y ruta, sin trabajar. Abierta: puede trabajar si registró asistencia. Cerrada: solo lectura. Los materiales, el control y la entrega se abren por separado. El observador ve todo como visible.</div><div id="s-msg"></div>' +
       Object.keys(semanas).sort((a, b) => a - b).map(w => '<div class="semana-cab"><h3 class="semana-t" style="margin:0">Semana ' + w + '</h3><div class="acciones">' +
         ['oculta:Ocultar', 'visible:Hacer visible', 'abierta:Abrir', 'cerrada:Cerrar'].map(x => { const [e, t] = x.split(':'); return '<button class="btn s peq" type="button" data-semana="' + w + '" data-estado="' + e + '">' + t + ' semana</button>'; }).join('') + '</div></div>' +
         '<div class="tabla"><table><thead><tr><th>Nº</th><th>Sesión</th><th>Estado</th><th>Habilitado</th><th></th></tr></thead><tbody>' + semanas[w].map(filaSesion).join('') + '</tbody></table></div>').join('');
     const bt = $('#s-tareas-base'), bp = $('#s-plan-base'), bg = $('#s-guias-base');
     if (bg) bg.onclick = () => M.ocupado(bg, async () => {
-      try { const x = await M.api('completarGuiasBase', { version_id: v.id }); await irA('sesiones', true); M.msg('#s-msg', (x.completadas === 1 ? 'Se completó 1 actividad' : 'Se completaron ' + x.completadas + ' actividades') + ' con su explicación y su ejemplo.' + (x.sin_guia ? ' ' + x.sin_guia + (x.sin_guia === 1 ? ' actividad propia no tiene' : ' actividades propias no tienen') + ' guía base: puedes escribirla en «Tareas».' : ''), 'ok'); }
+      try { const x = await M.api('completarGuiasBase', { version_id: v.id }); await irA('sesiones', true); M.msg('#s-msg', (x.completadas === 1 ? 'Se completó 1 actividad' : 'Se completaron ' + x.completadas + ' actividades') + ' con su explicación y su ejemplo' + (x.demos ? (x.demos === 1 ? ', y 1 sesión con su demostración.' : ', y ' + x.demos + ' sesiones con su demostración.') : '.') + (x.sin_guia ? ' ' + x.sin_guia + (x.sin_guia === 1 ? ' actividad propia no tiene' : ' actividades propias no tienen') + ' guía base: puedes escribirla en «Tareas».' : ''), 'ok'); }
       catch (e) { M.msg('#s-msg', e.message, 'mal'); }
     });
     if (bt) bt.onclick = () => M.ocupado(bt, async () => {
@@ -347,7 +347,7 @@
     const sw = (campo, txt) => '<label class="interruptor"><input type="checkbox" data-apertura="' + campo + '" data-id="' + esc(s.id) + '"' + (s[campo] ? ' checked' : '') + '>' + txt + '</label>';
     const v = versionActual() || {};
     const auto = v.apertura_lunes && s.abre_el ? (window.Sesiones.hoy() >= s.abre_el ? 'abierta para estudiantes desde el ' + M.fechaCorta(s.abre_el) : 'se abre el ' + M.fechaCorta(s.abre_el)) : '';
-    return '<tr><td><b>' + s.numero + '</b></td><td><b>' + esc(s.titulo) + '</b><br><small style="color:var(--pizarra)">' + esc([s.fecha ? M.fechaCorta(s.fecha) : 'Sin fecha', s.hora, s.unidad, s.n_objetivos + ' objetivos', s.n_materiales + ' materiales', s.defensa ? 'con defensa' : ''].filter(Boolean).join(' · ')) + '</small>' +
+    return '<tr><td><b>' + s.numero + '</b></td><td><b>' + esc(s.titulo) + '</b><br><small style="color:var(--pizarra)">' + esc([s.fecha ? M.fechaCorta(s.fecha) : 'Sin fecha', s.hora, s.unidad, s.n_objetivos + ' objetivos', s.n_materiales + ' materiales', s.tiene_demo ? 'con demostración' : '', s.defensa ? 'con defensa' : ''].filter(Boolean).join(' · ')) + '</small>' +
       (auto && s.estado === 'oculta' ? '<br><small style="color:var(--turquesa-t)">Apertura semanal: ' + esc(auto) + '</small>' : '') + '</td>' +
       '<td><select class="estado" data-id="' + esc(s.id) + '">' + ['oculta', 'visible', 'abierta', 'cerrada'].map(e => '<option value="' + e + '"' + (s.estado === e ? ' selected' : '') + '>' + window.Sesiones.ESTADOS[e][0] + '</option>').join('') + '</select></td>' +
       '<td><div style="display:grid;gap:4px">' + sw('materiales_visibles', 'Materiales') + sw('control_abierto', 'Control de lectura') + sw('entrega_abierta', 'Entrega') + '</div></td>' +
@@ -387,7 +387,14 @@
         '<div class="bloque-ed" data-momento="' + esc(b.momento) + '"><input type="text" data-titulo value="' + esc(b.titulo) + '"><textarea data-desc style="font-family:var(--sans);font-size:13px;min-height:56px">' + esc(b.descripcion || '') + '</textarea></div>').join('') +
       '</div><span class="ayuda">El estudiante ve cuatro momentos con hora de reloj: inicio, desarrollo con recreo de 15 minutos, defensa relámpago si corresponde, y cierre. Los horarios se calculan solos y son aproximados.</span></fieldset>' +
       '<fieldset><legend>Materiales</legend><div id="e-mats" style="display:grid;gap:8px"></div><div><button class="btn s peq" type="button" id="e-mat-mas">Agregar material</button></div>' +
-      '<span class="ayuda">Cuaderno y podcast en Drive, compartidos como "Cualquier persona con el enlace". Video en YouTube como "No listado". Pega la dirección completa.</span></fieldset><div id="e-msg"></div>',
+      '<span class="ayuda">Cuaderno y podcast en Drive, compartidos como "Cualquier persona con el enlace". Video en YouTube como "No listado". Pega la dirección completa.</span></fieldset>' +
+      '<fieldset><legend>Demostración del caso Los Aromos</legend><p class="sub" style="margin:0">La haces en clase y el estudiante la ve como material, junto con los materiales de la sesión, con los prompts listos para copiar.</p>' +
+      '<div class="campo"><label for="e-dm-titulo">Título</label><input type="text" id="e-dm-titulo" value="' + esc((s.demo || {}).titulo || '') + '"></div>' +
+      '<div class="campo"><label for="e-dm-obj">Qué se busca mostrar</label><textarea id="e-dm-obj" style="font-family:var(--sans);font-size:14px;min-height:56px">' + esc((s.demo || {}).objetivo || '') + '</textarea></div>' +
+      '<div class="fila"><div class="campo"><label for="e-dm-herr">Herramientas</label><input type="text" id="e-dm-herr" value="' + esc((s.demo || {}).herramientas || '') + '"></div>' +
+      '<div class="campo"><label for="e-dm-video">Video de la demostración</label><input type="url" id="e-dm-video" placeholder="https://" value="' + esc((s.demo || {}).video || '') + '"><span class="ayuda">Opcional. Si la grabas, pega aquí el enlace de YouTube (no listado).</span></div></div>' +
+      '<div id="e-dm-pasos" style="display:grid;gap:10px"></div><div><button class="btn s peq" type="button" id="e-dm-mas">Agregar paso</button></div>' +
+      '<div class="campo"><label for="e-dm-lec">La lección</label><input type="text" id="e-dm-lec" value="' + esc((s.demo || {}).leccion || '') + '"></div></fieldset><div id="e-msg"></div>',
       '<button class="btn s" type="button" data-cerrar>Cancelar</button><button class="btn p" type="button" id="e-ok">Guardar sesión</button>');
     m.el.querySelector('.modal').classList.add('ancho');
     const cont = $('#e-mats', m.el);
@@ -401,13 +408,28 @@
     };
     (s.materiales || []).forEach(filaMat);
     $('#e-mat-mas', m.el).onclick = () => filaMat();
+    const pasos = $('#e-dm-pasos', m.el);
+    const filaPaso = x => {
+      x = x || {};
+      const d = document.createElement('div'); d.className = 'paso-ed';
+      const ta = (k, ph, mono) => '<textarea data-p="' + k + '" placeholder="' + ph + '" style="font-family:' + (mono ? 'var(--mono)' : 'var(--sans)') + ';font-size:13px;min-height:56px">' + esc(x[k] || '') + '</textarea>';
+      d.innerHTML = '<div class="paso-cab"><input type="text" data-p="titulo" placeholder="Título del paso" value="' + esc(x.titulo || '') + '"><button class="btn t peq" type="button" data-sube>Subir</button><button class="btn t peq" type="button" data-quita>Quitar</button></div>' +
+        ta('hace', 'Qué se hace en este paso') + ta('prompt', 'Prompt o fórmula exacta (opcional)', true) + ta('observa', 'Qué observar en el resultado');
+      d.querySelector('[data-quita]').onclick = () => d.remove();
+      d.querySelector('[data-sube]').onclick = () => { if (d.previousElementSibling) pasos.insertBefore(d, d.previousElementSibling); };
+      pasos.appendChild(d);
+    };
+    ((s.demo && s.demo.pasos) || []).forEach(filaPaso);
+    $('#e-dm-mas', m.el).onclick = () => filaPaso();
     $('#e-ok', m.el).onclick = async ev => {
       const d = {
         id: s.id, titulo: $('#e-titulo', m.el).value, unidad: $('#e-unidad', m.el).value, fecha: $('#e-fecha', m.el).value, hora: $('#e-hora', m.el).value.trim(),
         defensa: $('#e-defensa', m.el).checked,
         objetivos: $('#e-obj', m.el).value.split('\n').map(x => x.trim().replace(/^[-•\d.)\s]+/, '')).filter(Boolean),
         ruta: Array.from(m.el.querySelectorAll('.bloque-ed')).map(b => ({ momento: b.dataset.momento, titulo: b.querySelector('[data-titulo]').value, descripcion: b.querySelector('[data-desc]').value })),
-        materiales: Array.from(cont.querySelectorAll('.mat-ed')).map(r => ({ tipo: r.querySelector('[data-tipo]').value, titulo: r.querySelector('[data-tit]').value, url: r.querySelector('[data-url]').value.trim() })).filter(x => x.url || x.titulo)
+        materiales: Array.from(cont.querySelectorAll('.mat-ed')).map(r => ({ tipo: r.querySelector('[data-tipo]').value, titulo: r.querySelector('[data-tit]').value, url: r.querySelector('[data-url]').value.trim() })).filter(x => x.url || x.titulo),
+        demo: { titulo: $('#e-dm-titulo', m.el).value, objetivo: $('#e-dm-obj', m.el).value, herramientas: $('#e-dm-herr', m.el).value, video: $('#e-dm-video', m.el).value.trim(), leccion: $('#e-dm-lec', m.el).value,
+          pasos: Array.from(pasos.querySelectorAll('.paso-ed')).map(r => { const o = {}; r.querySelectorAll('[data-p]').forEach(i => { o[i.dataset.p] = i.value; }); return o; }) }
       };
       await M.ocupado(ev.currentTarget, async () => {
         try { await M.api('guardarSesion', d); m.cerrar(); await irA('sesiones'); }

@@ -99,6 +99,31 @@
       cuerpo + '<a class="btn s peq" href="' + esc(m.url) + '" target="_blank" rel="noopener">Abrir en una pestaña nueva</a></article>';
   };
 
+  /* ---------- Demostración del caso Los Aromos ---------- */
+  S.demo = function (dm) {
+    if (!dm || !dm.pasos || !dm.pasos.length) return '';
+    return '<div class="tarjeta demo"><span class="lema">Demostración · Distribuidora Los Aromos</span><h2>' + esc(dm.titulo || 'Demostración del caso') + '</h2>' +
+      (dm.objetivo ? '<p>' + esc(dm.objetivo) + '</p>' : '') +
+      '<p class="sub demo-meta">' + (dm.herramientas ? 'Herramientas: ' + esc(dm.herramientas) + '. ' : '') + 'El docente la hace en clase; aquí la tienes para repetirla paso a paso con los mismos prompts.</p>' +
+      (dm.video ? '<div><a class="btn s" href="' + esc(dm.video) + '" target="_blank" rel="noopener">Ver la demostración grabada</a></div>' : '') +
+      '<ol class="demo-pasos">' + dm.pasos.map((p, i) => {
+        const formula = /^=/.test(p.prompt || '');
+        return '<li><details' + (i === 0 ? ' open' : '') + '><summary><span class="dn">' + (i + 1) + '</span><b>' + esc(p.titulo || 'Paso ' + (i + 1)) + '</b></summary><div class="dp-cuerpo">' +
+          (p.hace ? '<p>' + esc(p.hace) + '</p>' : '') +
+          (p.prompt ? '<div class="prompt-caja"><div class="pc-cab"><span>' + (formula ? 'Fórmula en Google Sheets' : 'Prompt') + '</span><button class="btn t peq" type="button" data-copiar>Copiar</button></div><pre>' + esc(p.prompt) + '</pre></div>' : '') +
+          (p.observa ? '<p class="observa"><b>Qué observar:</b> ' + esc(p.observa) + '</p>' : '') + '</div></details></li>';
+      }).join('') + '</ol>' +
+      (dm.leccion ? '<p class="leccion"><b>La lección:</b> ' + esc(dm.leccion) + '</p>' : '') + '</div>';
+  };
+  // Copiar el prompt de una demostración.
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-copiar]'); if (!b) return;
+    const pre = b.closest('.prompt-caja').querySelector('pre');
+    const listo = () => { b.textContent = 'Copiado'; setTimeout(() => { b.textContent = 'Copiar'; }, 1800); };
+    if (navigator.clipboard) navigator.clipboard.writeText(pre.textContent).then(listo).catch(() => { b.textContent = 'Selecciónalo y copia'; });
+    else b.textContent = 'Selecciónalo y copia';
+  });
+
   /* ---------- Lista ---------- */
   S.lista = function (sesiones, v, conEstado) {
     if (!sesiones.length) return '<div class="vacio">Aún no hay sesiones disponibles. Aparecerán aquí cuando el docente las habilite.</div>';
@@ -135,6 +160,7 @@
       '<p class="sub" style="font-size:.82rem">Los horarios son aproximados. Plazo para completar el trabajo: hasta las 23:59 del día de la clase, si registraste asistencia.</p></div>' +
       '<div class="tarjeta"><h2>Materiales</h2>' + (s.materiales && s.materiales.length ? '<div class="materiales">' + s.materiales.map(S.material).join('') + '</div>' :
         '<p class="sub">' + (s.materiales_visibles === false ? 'Los materiales de esta sesión aún no están disponibles.' : 'Esta sesión no tiene materiales cargados.') + '</p>') + '</div>' +
+      S.demo(s.demo) +
       '<div class="opciones">' + (s.control_abierto ? '<span class="chip ok">Control de lectura abierto</span>' : '') + (s.entrega_abierta ? '<span class="chip ok">Entrega abierta</span>' : '') + '</div>' +
       '<section class="tarjeta tareas" id="tareas-sesion"></section>';
   };
