@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const CFG = window.METIS_CONFIG || {};
-  const VERSION_INTERFAZ = '0.8.0';
+  const VERSION_INTERFAZ = '0.8.1';
 
   // Acciones que esta interfaz usa. Se comparan con las del servicio para detectar desajustes.
   const CONTRATO = ['ping', 'loginGoogle', 'loginClave', 'infoRegistro', 'registrarConGoogle', 'registrarConClave',
@@ -82,6 +82,40 @@
     return '<footer class="pie"><div class="in"><span>Creado por <strong>Luis Ernest Leyton Johns</strong> · ORCID <a href="https://orcid.org/0000-0002-4462-403X" target="_blank" rel="noopener">0000-0002-4462-403X</a> · <a href="https://linkedin.com/in/luis-leyton-johns" target="_blank" rel="noopener">linkedin.com/in/luis-leyton-johns</a></span>' +
       '<span>© ' + new Date().getFullYear() + ' Metis. Todos los derechos reservados. · <a href="privacidad.html">Privacidad</a></span></div></footer>';
   };
+  /* ---------- Instalar Metis como aplicación ---------- */
+  const INST = { evento: null };
+  const instalada = () => (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  const esIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); INST.evento = e; });
+  window.addEventListener('appinstalled', () => { INST.evento = null; document.querySelectorAll('[data-instalar], .instalar-card').forEach(x => x.remove()); });
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+  }
+  const ICO_INST = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  M.instalada = instalada;
+  M.botonInstalar = (clase, texto) => instalada() ? '' : '<button type="button" class="' + clase + '" data-instalar>' + ICO_INST + '<span>' + texto + '</span></button>';
+  M.activarInstalar = raiz => (raiz || document).querySelectorAll('[data-instalar]').forEach(b => { b.onclick = instalar; });
+  async function instalar() {
+    if (INST.evento) {
+      const ev = INST.evento; INST.evento = null;
+      ev.prompt();
+      try { await ev.userChoice; } catch (e) { /* nada */ }
+      return;
+    }
+    const paso = (n, t) => '<li><span class="n">' + n + '</span><span>' + t + '</span></li>';
+    const cuerpo = esIOS()
+      ? '<p style="margin:0">En iPhone y iPad, Metis se instala desde <b>Safari</b>:</p><ol class="inst-pasos">' +
+        paso(1, 'Abre esta página en Safari. Otros navegadores del iPhone no permiten instalar.') +
+        paso(2, 'Toca el botón <b>Compartir</b>, el cuadrado con una flecha hacia arriba.') +
+        paso(3, 'Elige <b>Agregar a inicio</b> y luego <b>Agregar</b>.') + '</ol>'
+      : '<p style="margin:0">Tu navegador no ofreció la instalación directa. Puedes hacerla desde su menú:</p><ol class="inst-pasos">' +
+        paso(1, '<b>Android, en Chrome:</b> menú de tres puntos y luego <b>Instalar aplicación</b> o <b>Agregar a la pantalla principal</b>.') +
+        paso(2, '<b>Computador, en Chrome o Edge:</b> el ícono de instalar que aparece a la derecha de la barra de direcciones, o el menú del navegador y luego <b>Instalar Metis</b>.') +
+        paso(3, 'Si no aparece la opción, recarga la página y vuelve a intentarlo en unos segundos.') + '</ol>';
+    M.modal('Instalar Metis', cuerpo + '<p style="margin:0;color:var(--pizarra);font-size:.88rem">Metis queda en tu pantalla de inicio y se abre como una aplicación. Sigue necesitando internet para cargar tus sesiones y guardar tu trabajo.</p>',
+      '<button class="btn p" type="button" data-cerrar>Entendido</button>');
+  }
+
   function patron(semilla, cols, filas) {
     let x = semilla; const rnd = () => { x = (x * 16807) % 2147483647; return x / 2147483647; };
     const C = ['#2457FF', '#00A896', '#FF6B35', '#1B3358', '#2457FF']; const s = 40; let h = '';
@@ -206,13 +240,13 @@
     const pilar = (k, t, d) => '<div class="pilar ' + k + '"><span class="ico">' + ICONOS[k] + '</span><b>' + t + '</b><p>' + d + '</p></div>';
     app().innerHTML = '<div class="portada">' +
       '<header class="p-barra"><div class="p-in"><a class="marca" href="./" aria-label="Metis">' + M.simbolo(46, true) + '<span class="word">METIS</span></a>' +
-      '<nav class="p-nav"><button type="button" data-ir="p-top" class="activo">Inicio</button><button type="button" data-ir="p-propuesta">¿Qué es Metis?</button><button type="button" data-ir="p-pilares">Características</button><button type="button" data-ir="p-acceso" class="p-ingresar">Ingresar</button></nav></div></header>' +
+      '<nav class="p-nav"><button type="button" data-ir="p-top" class="activo">Inicio</button><button type="button" data-ir="p-propuesta">¿Qué es Metis?</button><button type="button" data-ir="p-pilares">Características</button>' + M.botonInstalar('p-instalar-nav', 'Instalar app') + '<button type="button" data-ir="p-acceso" class="p-ingresar">Ingresar</button></nav></div></header>' +
       '<section class="p-hero" id="p-top"><div class="p-in"><div class="p-texto">' +
       '<span class="p-rotulo">Artes Digitales</span>' +
       '<h1>IA aplicada a la <em>Administración</em> y la <em>Economía</em></h1>' +
       '<p class="p-lema">Analiza · Verifica · Decide · Construye</p>' +
       '<p class="p-bajada">Metis es la plataforma del curso: cada sesión, sus materiales, el trabajo en clase y tu proyecto en un solo lugar. Usarás herramientas de inteligencia artificial para resolver un problema real de tu organización, con evidencia y criterio propio.</p>' +
-      '<button type="button" class="p-boton" data-ir="p-propuesta">Descubre más <span aria-hidden="true">→</span></button></div>' +
+      '<div class="p-botones"><button type="button" class="p-boton" data-ir="p-propuesta">Descubre más <span aria-hidden="true">→</span></button>' + M.botonInstalar('p-boton p-boton-inst', 'Instalar la app') + '</div></div>' +
       '<div class="p-arte" role="img" aria-label="Busto clásico intervenido con triángulos y gráficos de datos"></div></div></section>' +
       '<section class="p-propuesta" id="p-propuesta"><div class="p-in"><div class="p-izq">' +
       '<span class="p-rotulo oscuro">Nuestra propuesta</span>' +
@@ -244,6 +278,7 @@
       M.pie() + '</div>';
     app().querySelectorAll('[data-ir]').forEach(b => { b.onclick = () => { const el = document.getElementById(b.dataset.ir); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }; });
     $('#l-ver').onclick = () => { const c = $('#l-clave'); c.type = c.type === 'password' ? 'text' : 'password'; };
+    M.activarInstalar(app());
     if (aviso) M.msg('#l-msg', aviso.texto, aviso.tipo);
     M.botonGoogle($('#l-google'), async cred => {
       M.msg('#l-msg', 'Verificando…', 'info');
@@ -477,6 +512,8 @@
     const obs = ins.rol === 'observador';
     c.innerHTML = '<div class="cabecera"><div><span class="lema" style="color:var(--pizarra)">Hola, ' + esc(u.primer_nombre || u.nombre) + '</span><h1>' + esc(v.asignatura) + '</h1><p>' + esc([v.institucion, v.escuela, [v.periodo, v.anio].filter(Boolean).join(' ')].filter(Boolean).join(' · ')) + '</p></div>' + selectorCurso() + '</div>' +
       (obs ? '<div class="msg info">Perfil observador: ves el curso tal como lo ve un estudiante, con un proyecto de ejemplo. No puedes enviar trabajos.</div>' : '') +
+      (!instalada() && leer('metis_inst_no') !== '1' ? '<section class="tarjeta instalar-card"><img src="icono-192.png" alt=""><div><b>Instala Metis en tu celular</b><p>Ábrelo desde la pantalla de inicio, como una aplicación, sin buscar la dirección. Es útil para registrar la asistencia rápido en clase.</p></div>' +
+        '<div class="acciones">' + M.botonInstalar('btn p', 'Instalar') + '<button type="button" class="btn t" id="inst-no">Ahora no</button></div></section>' : '') +
       '<div class="inicio-grid">' +
       '<section class="tarjeta hoy" id="i-hoy"><div class="vacio">Cargando…</div></section>' +
       '<section class="tarjeta" id="i-pend"><h2>Pendientes</h2><div class="vacio">Cargando…</div></section>' +
@@ -491,6 +528,8 @@
       dato('Sesiones', v.sesiones + ' de unos ' + v.minutos + ' min') + dato('Por semana', v.sesiones_semana) + dato('Inicio', fechaLarga(v.fecha_inicio) || 'Por definir') +
       dato('Horario', v.hora_inicio ? 'Desde las ' + v.hora_inicio : 'Por definir') + dato('Asistencia mínima', v.asistencia_min + '%') +
       '</div>' + (v.whatsapp ? '<div><a class="btn s" href="' + esc(v.whatsapp) + '" target="_blank" rel="noopener">Grupo de WhatsApp del curso</a></div>' : '') + '</section>';
+    M.activarInstalar(c);
+    const ino = $('#inst-no'); if (ino) ino.onclick = () => { guardar('metis_inst_no', '1'); const k = c.querySelector('.instalar-card'); if (k) k.remove(); };
     const sel = $('#a-curso'); if (sel) sel.addEventListener('change', () => { M.estado.versionId = sel.value; guardar('metis_version', sel.value); M.conVelo(enrutar); });
 
     let ses = [];
