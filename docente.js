@@ -500,7 +500,8 @@
       '<input type="text" id="n-inst-otra" placeholder="Nombre de la institución" value="' + esc(otra ? inst : '') + '"' + (otra ? '' : ' style="display:none"') + '></div></div>' +
       '<div class="fila"><div class="campo"><label for="n-acc-desde">Acceso desde</label><input type="date" id="n-acc-desde" value="' + esc(x.acceso_desde || '') + '"></div>' +
       '<div class="campo"><label for="n-acc-hasta">Acceso hasta</label><input type="date" id="n-acc-hasta" value="' + esc(x.acceso_hasta || '') + '"></div></div>' +
-      '<span class="ayuda">Vacías: usa el período de la versión (' + esc(deVersion) + '). El último día tiene acceso hasta las 23:59; después ya no puede ingresar.</span></div>';
+      '<span class="ayuda" data-ayuda="est"' + (rol === 'observador' ? ' style="display:none"' : '') + '>Vacías: usa el período de acceso de los estudiantes de la versión (' + esc(deVersion) + '). El último día tiene acceso hasta las 23:59.</span>' +
+      '<span class="ayuda" data-ayuda="obs"' + (rol === 'observador' ? '' : ' style="display:none"') + '>El observador no depende de las fechas del curso: siempre ve el curso completo. Estas fechas solo controlan su acceso a Metis. Vacías: acceso sin límite.</span></div>';
   }
   function activarBloqueAcceso(el) {
     const sel = $('#n-inst', el), otra = $('#n-inst-otra', el);
@@ -508,8 +509,7 @@
     el.querySelectorAll('input[name=n-rol]').forEach(r => { r.addEventListener('change', () => {
       const obs = $('input[name=n-rol]:checked', el).value === 'observador';
       el.querySelectorAll('[data-solo-obs]').forEach(x => { x.style.display = obs ? '' : 'none'; });
-      const v = versionActual() || {};
-      if (obs && !$('#n-acc-hasta', el).value && v.acceso_hasta) $('#n-acc-hasta', el).value = v.acceso_hasta;
+      el.querySelectorAll('[data-ayuda]').forEach(x => { x.style.display = (x.dataset.ayuda === 'obs') === obs ? '' : 'none'; });
     }); });
   }
   function leerAcceso(el) {
@@ -520,7 +520,7 @@
   function formAcceso(x) {
     const obs = x.rol_curso === 'observador';
     const m = M.modal('Acceso de ' + x.nombre, '<p style="margin:0">' + chipAcceso(x.acceso) + '</p>' + bloqueAcceso(x, x.rol_curso) + '<div id="n-msg"></div>',
-      '<button class="btn s" type="button" data-cerrar>Cancelar</button>' + (x.acceso_desde || x.acceso_hasta ? '<button class="btn t" type="button" id="n-limpiar">Usar fechas de la versión</button>' : '') + '<button class="btn p" type="button" id="n-ok">Guardar</button>');
+      '<button class="btn s" type="button" data-cerrar>Cancelar</button>' + (x.acceso_desde || x.acceso_hasta ? '<button class="btn t" type="button" id="n-limpiar">' + (obs ? 'Quitar fechas' : 'Usar fechas de la versión') + '</button>' : '') + '<button class="btn p" type="button" id="n-ok">Guardar</button>');
     activarBloqueAcceso(m.el);
     const guardar = async (btn, limpiar) => {
       const a = leerAcceso(m.el);
@@ -592,7 +592,7 @@
   function formPersona() {
     const m = M.modal('Agregar persona',
       '<div class="campo"><span class="etq">Rol en esta versión</span><div class="opciones"><label><input type="radio" name="n-rol" value="estudiante" checked><span>Estudiante</span></label><label><input type="radio" name="n-rol" value="observador"><span>Observador</span></label></div>' +
-      '<span class="ayuda">El observador ve el curso como un estudiante, con el caso guía, sin poder enviar. Úsalo para jefaturas, directivos y académicos de otras instituciones.</span></div>' + camposBasicos() + bloqueAcceso({}, 'estudiante') +
+      '<span class="ayuda">El observador ve el curso completo, con todas sus sesiones, materiales y actividades, sin depender de las fechas del curso, pero no puede enviar trabajos. Úsalo para jefaturas, directivos y académicos de otras instituciones.</span></div>' + camposBasicos() + bloqueAcceso({}, 'estudiante') +
       '<label class="check"><input type="checkbox" id="n-enviar" checked><span>Enviar por correo el acceso con su clave temporal</span></label><div id="n-msg"></div>',
       '<button class="btn p" type="button" id="n-ok">Agregar</button>');
     activarBloqueAcceso(m.el);
