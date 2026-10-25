@@ -1,8 +1,8 @@
 /* Metis · sw.js · Permite instalar Metis como aplicación.
    Siempre pide primero a la red, para que nadie quede con una versión vieja;
    la copia guardada solo se usa si no hay conexión. No toca las llamadas al servicio de Apps Script. */
-const CACHE = 'metis-0.8.1';
-const BASE = ['./', 'index.html', 'metis.css', 'app.js', 'vista-sesion.js', 'vista-tareas.js', 'docente.js', 'config.js', 'manifest.webmanifest', 'icono-192.png', 'icono-512.png'];
+const CACHE = 'metis-0.9.0';
+const BASE = ['./', 'index.html', 'metis.css', 'app.js', 'vista-sesion.js', 'vista-tareas.js', 'vista-estudiante.js', 'docente.js', 'config.js', 'manifest.webmanifest', 'icono-192.png', 'icono-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => Promise.all(BASE.map(u => c.add(u).catch(() => null)))).then(() => self.skipWaiting()));

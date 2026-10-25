@@ -144,7 +144,7 @@
     const e = S.estadoAhora(s, v);
     const conHora = r.inicio != null;
     return '' +
-      (opciones.volver ? '<div><a class="btn t" href="#inicio">← Volver al inicio</a></div>' : '') +
+      (opciones.volver ? '<div><a class="btn t" href="#sesiones" onclick="if (history.length > 1) { history.back(); return false; }">← Volver</a></div>' : '') +
       '<div id="reloj-sesion">' + S.relojHTML(s, v) + '</div>' +
       '<div class="cabecera"><div><span class="lema" style="color:var(--pizarra)">Sesión ' + s.numero + ' · Semana ' + s.semana + (s.unidad ? ' · ' + esc(s.unidad) : '') + '</span>' +
       '<h1>' + esc(s.titulo) + '</h1><p>' + esc([s.fecha ? M.fechaLarga(s.fecha) : 'Fecha por definir', conHora ? aHora(r.inicio) + ' a ' + aHora(r.fin) : ''].filter(Boolean).join(' · ')) + '</p></div>' + S.chipEstado(s.estado) + '</div>' +

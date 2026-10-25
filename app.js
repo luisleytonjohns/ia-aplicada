@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const CFG = window.METIS_CONFIG || {};
-  const VERSION_INTERFAZ = '0.8.1';
+  const VERSION_INTERFAZ = '0.9.0';
 
   // Acciones que esta interfaz usa. Se comparan con las del servicio para detectar desajustes.
   const CONTRATO = ['ping', 'loginGoogle', 'loginClave', 'infoRegistro', 'registrarConGoogle', 'registrarConClave',
@@ -11,16 +11,18 @@
     'actualizarPersona', 'reenviarAcceso', 'cambiarEstadoInscripcion', 'cargaMasiva', 'verFoto',
     'misSesiones', 'verSesion', 'listarSesiones', 'generarSesiones', 'verSesionDocente', 'guardarSesion', 'cambiarEstadoSesiones', 'cambiarAperturaSesion',
     'registrarAsistencia', 'guardarRespuesta', 'subirArchivo', 'guardarTareas', 'codigoAsistencia', 'listarAsistencia', 'marcarAsistencia', 'entregasSesion', 'verRespuesta',
-    'cargarTareasBase', 'actualizarPlanBase', 'completarGuiasBase', 'cambiarAccesoInscripcion'];
+    'cargarTareasBase', 'actualizarPlanBase', 'completarGuiasBase', 'cambiarAccesoInscripcion', 'miAvance'];
 
   const M = window.M = { estado: { token: null, sesion: null, versionId: null }, CONTRATO: CONTRATO, ESPERA_MAX_MS: 40000 };
   const app = () => document.getElementById('app');
+  M.app = app;
 
   /* ---------- Utilidades ---------- */
   const esc = M.esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const $ = M.$ = (sel, raiz) => (raiz || document).querySelector(sel);
   const guardar = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) { /* sin almacenamiento */ } };
   const leer = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  M.leer = leer; M.guardar = guardar;
 
   M.msg = function (el, texto, tipo) {
     if (typeof el === 'string') el = $(el);
@@ -432,9 +434,12 @@
     if (!s.inscripciones.length) { c.innerHTML = '<div class="tarjeta"><h2>No tienes cursos activos</h2><p>Escribe a tu docente para que revise tu inscripción.</p></div>'; return; }
     if (u.rol === 'estudiante' && !u.ficha_completa) { vistaCompletarFicha(c); return; }
     if (!location.hash) history.replaceState(null, '', location.pathname + '#inicio');
-    if (base === 'sesion' && arg) { await abrirSesion(c, arg); return; }
-    if (base === 'ficha') { vistaCompletarFicha(c, true); return; }
-    await vistaInicio(c);
+    const E = window.Estudiante;
+    if (base === 'sesion' && arg) { E.marcar('sesiones'); await abrirSesion(c, arg); return; }
+    if (base === 'ficha') { E.marcar(''); vistaCompletarFicha(c, true); return; }
+    if (await E.ir(c, base)) return;
+    history.replaceState(null, '', location.pathname + '#inicio');
+    await E.ir(c, 'inicio');
   }
 
   /* ---------- Ambiente ---------- */
@@ -443,6 +448,14 @@
     const rotulo = { docente: 'Docente', estudiante: 'Estudiante', observador: 'Observador' }[u.rol] || '';
     const inicio = u.rol === 'docente' ? '#d/hoy' : '#inicio';
     if (u.rol === 'docente') { ambienteDocente(u); await enrutar(); return; }
+    if (window.Estudiante) {
+      window.Estudiante.shell(u);
+      if (s.inscripciones.length) {
+        const guardada = leer('metis_version');
+        M.estado.versionId = (s.inscripciones.find(i => i.version.id === guardada) || s.inscripciones[0]).version.id;
+      }
+      await enrutar(); return;
+    }
     app().innerHTML = '<header class="barra"><div class="in"><a class="marca" href="' + inicio + '" aria-label="Ir al inicio">' + M.simbolo(30, true) + '<span class="word">METIS</span></a>' +
       '<nav class="usuario"><a class="btn t" href="' + inicio + '">Inicio</a>' +
       (u.foto_mini ? '<img class="foto" style="width:30px;height:30px" src="' + esc(u.foto_mini) + '" alt="">' : '') +
@@ -504,111 +517,11 @@
     const s = M.estado.sesion;
     return s.inscripciones.find(i => i.version.id === M.estado.versionId) || s.inscripciones[0];
   }
+  M.inscripcionActual = inscripcionActual; M.selectorCurso = selectorCurso;
+  M.modalClave = () => modalClave();
+  M.cerrarSesion = () => { M.salir(false); vistaLogin({ texto: 'Cerraste tu sesión.', tipo: 'ok' }); };
 
-  /* ---------- Inicio del estudiante: hoy, pendientes, progreso y proyecto ---------- */
-  async function vistaInicio(c) {
-    const u = M.estado.sesion.usuario;
-    const ins = inscripcionActual(); const v = ins.version;
-    const obs = ins.rol === 'observador';
-    c.innerHTML = '<div class="cabecera"><div><span class="lema" style="color:var(--pizarra)">Hola, ' + esc(u.primer_nombre || u.nombre) + '</span><h1>' + esc(v.asignatura) + '</h1><p>' + esc([v.institucion, v.escuela, [v.periodo, v.anio].filter(Boolean).join(' ')].filter(Boolean).join(' · ')) + '</p></div>' + selectorCurso() + '</div>' +
-      (obs ? '<div class="msg info">Perfil observador: ves el curso tal como lo ve un estudiante, con un proyecto de ejemplo. No puedes enviar trabajos.</div>' : '') +
-      (!instalada() && leer('metis_inst_no') !== '1' ? '<section class="tarjeta instalar-card"><img src="icono-192.png" alt=""><div><b>Instala Metis en tu celular</b><p>Ábrelo desde la pantalla de inicio, como una aplicación, sin buscar la dirección. Es útil para registrar la asistencia rápido en clase.</p></div>' +
-        '<div class="acciones">' + M.botonInstalar('btn p', 'Instalar') + '<button type="button" class="btn t" id="inst-no">Ahora no</button></div></section>' : '') +
-      '<div class="inicio-grid">' +
-      '<section class="tarjeta hoy" id="i-hoy"><div class="vacio">Cargando…</div></section>' +
-      '<section class="tarjeta" id="i-pend"><h2>Pendientes</h2><div class="vacio">Cargando…</div></section>' +
-      '<section class="tarjeta" id="i-prog"><h2>Mi progreso</h2><div class="vacio">Cargando…</div></section>' +
-      (obs ? '' : '<section class="tarjeta"><h2>Mi proyecto</h2><div class="persona">' + (u.foto_mini ? '<img class="foto g" src="' + esc(u.foto_mini) + '" alt="">' : '') +
-        '<div><b style="font:600 1.05rem/1.3 var(--disp)">' + esc(u.nombre) + '</b><small>' + esc(u.correo_institucional) + (u.celular ? ' · ' + esc(u.celular) : '') + '</small></div></div>' +
-        '<div class="datos">' + dato('Mención o área', u.mencion || 'Por completar') + dato('Organización', u.organizacion || 'Caso de referencia') + dato('Modalidad', u.modalidad || 'Por definir') + '</div>' +
-        '<div><a class="btn s" href="#ficha">Editar mi ficha</a></div></section>') +
-      '</div>' +
-      '<section class="tarjeta"><h2>Todas tus sesiones</h2><div id="i-sesiones"><div class="vacio">Cargando sesiones…</div></div></section>' +
-      '<section class="tarjeta"><h2>El curso</h2><div class="datos">' +
-      dato('Sesiones', v.sesiones + ' de unos ' + v.minutos + ' min') + dato('Por semana', v.sesiones_semana) + dato('Inicio', fechaLarga(v.fecha_inicio) || 'Por definir') +
-      dato('Horario', v.hora_inicio ? 'Desde las ' + v.hora_inicio : 'Por definir') + dato('Asistencia mínima', v.asistencia_min + '%') +
-      '</div>' + (v.whatsapp ? '<div><a class="btn s" href="' + esc(v.whatsapp) + '" target="_blank" rel="noopener">Grupo de WhatsApp del curso</a></div>' : '') + '</section>';
-    M.activarInstalar(c);
-    const ino = $('#inst-no'); if (ino) ino.onclick = () => { guardar('metis_inst_no', '1'); const k = c.querySelector('.instalar-card'); if (k) k.remove(); };
-    const sel = $('#a-curso'); if (sel) sel.addEventListener('change', () => { M.estado.versionId = sel.value; guardar('metis_version', sel.value); M.conVelo(enrutar); });
-
-    let ses = [];
-    try {
-      const r = await M.api('misSesiones', { version_id: v.id });
-      ses = (r && Array.isArray(r.sesiones)) ? r.sesiones : [];
-    } catch (e) {
-      ['#i-hoy', '#i-pend', '#i-prog'].forEach(x => { const el = $(x); if (el) el.innerHTML = ''; });
-      $('#i-sesiones').innerHTML = '<div class="msg mal">' + esc(e.message) + '</div>';
-      return;
-    }
-    if (!$('#i-hoy')) return; // el usuario ya cambió de vista
-    const S = window.Sesiones;
-    const hoy = bloqueHoy(ses, v);
-    $('#i-hoy').innerHTML = hoy.html;
-    if (hoy.sesion && hoy.sesion.fecha === S.hoy()) S.activarReloj(hoy.sesion, v);
-    $('#i-pend').innerHTML = '<h2>Pendientes</h2>' + bloquePendientes(ses);
-    $('#i-prog').innerHTML = '<h2>Mi progreso</h2>' + bloqueProgreso(ses, v, obs);
-    $('#i-sesiones').innerHTML = S.lista(ses, v);
-  }
-
-  function bloqueHoy(ses, v) {
-    const S = window.Sesiones, hoy = S.hoy();
-    const conFecha = ses.filter(x => x.fecha).sort((a, b) => (a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : a.numero - b.numero));
-    const s = conFecha.find(x => x.fecha === hoy) || conFecha.find(x => x.fecha > hoy);
-    if (!s) return { html: '<h2>Próxima sesión</h2><p class="sub">' + (ses.length ? 'Las fechas de las próximas sesiones se publicarán pronto.' : 'Aún no hay sesiones habilitadas. Aparecerán aquí cuando el docente las abra.') + '</p>' };
-    const esHoy = s.fecha === hoy, r = S.momentos(s, v);
-    const agenda = r.inicio != null ? '<ol class="agenda">' + r.lista.map(m => '<li><span>' + m.horaDesde + '</span>' + esc(m.titulo) + (m.recreo ? ' <small>con recreo de ' + m.recreo + ' min</small>' : '') + '</li>').join('') + '<li><span>' + S.aHora(r.fin) + '</span>Término</li></ol>' : '';
-    const prepara = esHoy ? 'Ten a mano tu proyecto y los datos sintéticos con que trabajas. El plazo para completar lo de hoy vence a las 23:59.'
-      : (s.materiales_visibles && s.n_materiales ? 'Antes de la clase revisa ' + (s.n_materiales === 1 ? 'el material' : 'los ' + s.n_materiales + ' materiales') + ' de la sesión.' : 'Cuando el docente publique los materiales, revísalos antes de la clase.');
-    return {
-      sesion: s,
-      html: '<span class="lema" style="color:var(--naranja-t)">' + (esHoy ? 'Hoy' : 'Próxima sesión') + '</span>' +
-        '<h2>Sesión ' + s.numero + ' · ' + esc(s.titulo) + '</h2><p class="sub" style="margin:0">' + esc([M.fechaLarga(s.fecha), r.inicio != null ? S.aHora(r.inicio) + ' a ' + S.aHora(r.fin) : ''].filter(Boolean).join(' · ')) + '</p>' +
-        (esHoy ? '<div id="reloj-sesion">' + S.relojHTML(s, v) + '</div>' : '') + agenda +
-        '<p class="prepara"><b>Qué preparar:</b> ' + esc(prepara) + '</p><div><a class="btn p" href="#sesion/' + esc(s.id) + '">Entrar a la sesión</a></div>'
-    };
-  }
-
-  const ASISTIO = a => !!(a && ['presente', 'atrasado', 'justificado'].indexOf(a.estado) >= 0);
-
-  function bloquePendientes(ses) {
-    const hoy = window.Sesiones.hoy(), items = [];
-    ses.forEach(s => {
-      const ref = 'Sesión ' + s.numero + ' · ' + s.titulo, href = '#sesion/' + s.id;
-      if (s.estado === 'abierta' && s.fecha === hoy && !ASISTIO(s.asistencia)) items.push({ c: 'naranja', t: 'Registra tu asistencia', r: ref, d: 'Con el código que muestra el docente en la sala', href: href });
-      if (s.estado === 'abierta' && ASISTIO(s.asistencia) && s.fecha >= hoy && s.n_enviadas < s.n_tareas)
-        items.push({ c: 'naranja', t: 'Tareas por enviar: ' + (s.n_tareas - s.n_enviadas) + ' de ' + s.n_tareas, r: ref, d: (s.cierre_enviado ? '' : 'Incluye la actividad de cierre · ') + 'Plazo: ' + (s.fecha === hoy ? 'hoy' : M.fechaCorta(s.fecha)) + ' hasta las 23:59', href: href });
-      if (s.control_abierto) items.push({ c: 'cobalto', t: 'Control de lectura disponible', r: ref, d: 'Respóndelo durante la clase', href: href });
-      if (s.materiales_visibles && s.n_materiales && (!s.fecha || s.fecha >= hoy)) items.push({ c: 'turquesa', t: 'Lectura previa', r: ref, d: s.n_materiales + (s.n_materiales === 1 ? ' material' : ' materiales') + (s.fecha ? ' · antes de la clase del ' + M.fechaCorta(s.fecha) : ''), href: href });
-    });
-    if (!items.length) return '<p class="sub">No tienes pendientes por ahora. Las tareas y controles aparecerán aquí cuando el docente los abra.</p>';
-    return '<ul class="pendientes">' + items.map(i => '<li class="' + i.c + '"><a href="' + esc(i.href) + '"><b>' + esc(i.t) + '</b><span>' + esc(i.r) + '</span><small>' + esc(i.d) + '</small></a></li>').join('') + '</ul>';
-  }
-
-  function bloqueProgreso(ses, v, obs) {
-    const hoy = window.Sesiones.hoy();
-    const total = Number(v.sesiones) || ses.length || 12;
-    const hecha = s => s.estado === 'cerrada' || (s.fecha && s.fecha < hoy);
-    const hechas = ses.filter(hecha).length;
-    const pct = Math.round(100 * hechas / total);
-    const hitoEn = f => Math.max(1, Math.round(total * f));
-    const hitos = [['H1', 'Diagnóstico', hitoEn(0.25)], ['H2', 'Verificación', hitoEn(0.5)], ['H3', 'Prototipo', hitoEn(0.75)], ['H4', 'Beta', Math.max(1, total - 1)], ['Final', 'Informe', total]];
-    const lograda = n => ses.some(s => s.numero === n && hecha(s));
-    return '<div class="progreso"><div class="barra-p"><i style="width:' + pct + '%"></i></div><p><b>' + hechas + ' de ' + total + '</b> sesiones realizadas</p></div>' +
-      '<ol class="hitos">' + hitos.map(h => '<li class="' + (lograda(h[2]) ? 'hecho' : '') + '"><span class="h">' + h[0] + '</span><b>' + h[1] + '</b><small>Sesión ' + h[2] + '</small></li>').join('') + '</ol>' +
-      bloqueAsistencia(ses, v, obs) +
-      '<p class="sub" style="font-size:.82rem;margin:0">Las calificaciones se mostrarán aquí cuando se publiquen.</p>';
-  }
-
-  function bloqueAsistencia(ses, v, obs) {
-    const hoy = window.Sesiones.hoy();
-    const pasadas = ses.filter(s => s.fecha && s.fecha <= hoy && (s.estado === 'abierta' || s.estado === 'cerrada'));
-    if (obs || !pasadas.length) return '';
-    const con = pasadas.filter(s => ASISTIO(s.asistencia)).length;
-    const pct = Math.round(100 * con / pasadas.length);
-    const min = Number(v.asistencia_min) || 0;
-    return '<div class="asis-resumen' + (pct < min ? ' bajo' : '') + '"><b>Asistencia: ' + con + ' de ' + pasadas.length + ' sesiones (' + pct + '%)</b><small>Mínimo del curso: ' + min + '%</small></div>';
-  }
+  /* El inicio y los menús del estudiante están en vista-estudiante.js. */
 
   async function abrirSesion(c, id) {
     c.innerHTML = '<div class="vacio">Cargando la sesión…</div>';
