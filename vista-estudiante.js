@@ -203,7 +203,13 @@
     const obs = d.rol === 'observador', h = hoy();
     const pasadas = d.sesiones.filter(s => s.fecha && (s.fecha < h || (s.fecha === h && ASISTIO(s.asistencia))) && (s.estado === 'abierta' || s.estado === 'cerrada'));
     const con = pasadas.filter(s => ASISTIO(s.asistencia)).length, pct = pasadas.length ? Math.round(100 * con / pasadas.length) : null, min = d.asistencia_min || 0;
-    const asis = obs ? '' : '<section class="tarjeta" id="av-asistencia"><h2>Asistencia</h2>' +
+    const ac = d.asistencia_curso;
+    const asisCurso = !obs || !ac ? '' : '<section class="tarjeta" id="av-asistencia"><h2>Asistencia del curso</h2>' +
+      (ac.sesiones.length ? '<div class="asis-resumen' + (ac.promedio < min ? ' bajo' : '') + '"><b>Promedio: ' + ac.promedio + '% · ' + ac.estudiantes + (ac.estudiantes === 1 ? ' estudiante' : ' estudiantes') + '</b><small>Mínimo del curso: ' + min + '% por estudiante</small></div>' +
+        '<ul class="av-lista">' + ac.sesiones.map(f => '<li><span><b>Sesión ' + f.numero + '</b> · ' + esc(f.titulo) + '<small>' + esc(M.fechaCorta(f.fecha)) + ' · ' + f.presentes + ' de ' + f.estudiantes + ' presentes</small></span><span class="av-barra"><i style="width:' + f.pct + '%"></i></span><b class="av-pct">' + f.pct + '%</b></li>').join('') + '</ul>' +
+        '<p class="sub" style="font-size:.85rem;margin:0">Datos agregados del curso, sin nombres. Cuentan como presentes los registros a tiempo, con atraso y justificados.</p>'
+        : '<p class="sub" style="margin:0">Aún no hay sesiones realizadas. La asistencia del curso aparecerá aquí desde la primera clase.</p>') + '</section>';
+    const asis = obs ? asisCurso : '<section class="tarjeta" id="av-asistencia"><h2>Asistencia</h2>' +
       (pasadas.length ? '<div class="asis-resumen' + (pct < min ? ' bajo' : '') + '"><b>' + con + ' de ' + pasadas.length + ' sesiones (' + pct + '%)</b><small>Mínimo del curso: ' + min + '%</small></div>' +
         '<ul class="av-lista">' + pasadas.map(s => { const e = s.asistencia && ESTADO_AS[s.asistencia.estado] ? ESTADO_AS[s.asistencia.estado] : ['mal', 'Ausente']; return '<li><span><b>Sesión ' + s.numero + '</b> · ' + esc(s.titulo) + '<small>' + esc(M.fechaCorta(s.fecha)) + (s.asistencia && s.asistencia.hora ? ' · ' + esc(s.asistencia.hora) : '') + '</small></span><span class="chip ' + e[0] + '">' + e[1] + '</span></li>'; }).join('') + '</ul>'
         : '<p class="sub" style="margin:0">Aún no hay sesiones realizadas. Tu asistencia aparecerá aquí desde la primera clase.</p>') + '</section>';
@@ -215,9 +221,9 @@
     const notas = '<section class="tarjeta" id="av-calificaciones"><h2>Calificaciones</h2>' + (cal.disponible && cal.items && cal.items.length
       ? '<ul class="av-lista ev">' + cal.items.map(n => '<li><span class="peso nota">' + esc(n.nota) + '</span><span><b>' + esc(n.componente) + '</b><small>' + esc([n.fecha, n.comentario].filter(Boolean).join(' · ')) + '</small></span></li>').join('') + '</ul>'
       : '<div class="vacio-cal"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16M7 16v-4M12 16V8M17 16v-7"/></svg><b>Aún no tienes calificaciones que mostrar.</b><p class="sub" style="margin:0">Cuando el docente publique una nota, aparecerá aquí con su retroalimentación.</p></div>') + '</section>';
-    c.innerHTML = cab('Mi avance', 'Tu avance en el curso', obs ? 'Plan de evaluación del curso.' : 'Asistencia, evaluaciones y calificaciones.') +
-      (obs ? '' : '<nav class="av-saltos"><a href="#avance" data-salto="av-asistencia">Asistencia</a><a href="#avance" data-salto="av-evaluaciones">Evaluaciones</a><a href="#avance" data-salto="av-calificaciones">Calificaciones</a></nav>') +
-      asis + ev + notas;
+    c.innerHTML = cab('Mi avance', obs ? 'Avance del curso' : 'Tu avance en el curso', obs ? 'Asistencia del curso y plan de evaluación.' : 'Asistencia, evaluaciones y calificaciones.') +
+      '<nav class="av-saltos"><a href="#avance" data-salto="av-asistencia">' + (obs ? 'Asistencia del curso' : 'Asistencia') + '</a><a href="#avance" data-salto="av-evaluaciones">Evaluaciones</a>' + (obs ? '' : '<a href="#avance" data-salto="av-calificaciones">Calificaciones</a>') + '</nav>' +
+      asis + ev + (obs ? '' : notas);
     c.querySelectorAll('[data-salto]').forEach(a => { a.onclick = e => { e.preventDefault(); const el = document.getElementById(a.dataset.salto); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }; });
   }
 
