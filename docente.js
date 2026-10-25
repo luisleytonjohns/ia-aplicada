@@ -611,14 +611,38 @@
   }
 
   function formEditar(x) {
-    const m = M.modal('Editar datos de ' + x.nombre, '<p style="margin:0;color:var(--pizarra);font-size:.88rem">Corrige errores de ingreso. Los cambios quedan registrados en la auditoría.</p>' + camposBasicos(x) +
+    const obs0 = x.rol_curso === 'observador';
+    const inst = x.institucion_obs || '', otra = inst && INST_OBS.indexOf(inst) < 0;
+    const rolHTML = '<div class="campo"><span class="etq">Rol en esta versión</span><div class="opciones">' +
+      '<label><input type="radio" name="n-rol" value="estudiante"' + (obs0 ? '' : ' checked') + '><span>Estudiante</span></label>' +
+      '<label><input type="radio" name="n-rol" value="observador"' + (obs0 ? ' checked' : '') + '><span>Observador</span></label></div>' +
+      '<span class="ayuda" data-ayuda="est"' + (obs0 ? '' : ' style="display:none"') + '>Al pasar a estudiante deberá completar su ficha con foto la próxima vez que entre, registrará asistencia y enviará tareas. Su acceso seguirá las fechas de los estudiantes de la versión, salvo que tenga fechas propias.</span>' +
+      '<span class="ayuda" data-ayuda="obs"' + (obs0 ? ' style="display:none"' : '') + '>Al pasar a observador verá el curso completo sin depender de las fechas del curso, pero no podrá enviar trabajos. Lo que ya envió queda guardado.</span></div>' +
+      '<div class="campo" data-solo-obs' + (obs0 ? '' : ' style="display:none"') + '><label for="n-inst">Institución del observador *</label><div class="fila">' +
+      '<select id="n-inst"><option value="">Elige…</option>' + INST_OBS.map(i => '<option' + (inst === i ? ' selected' : '') + '>' + i + '</option>').join('') + '<option value="otra"' + (otra ? ' selected' : '') + '>Otra</option></select>' +
+      '<input type="text" id="n-inst-otra" placeholder="Nombre de la institución" value="' + esc(otra ? inst : '') + '"' + (otra ? '' : ' style="display:none"') + '></div></div>';
+    const m = M.modal('Editar datos de ' + x.nombre, '<p style="margin:0;color:var(--pizarra);font-size:.88rem">Corrige errores de ingreso o cambia su rol en esta versión. Los cambios quedan registrados en la auditoría.</p>' + rolHTML + camposBasicos(x) +
       '<div class="fila"><div class="campo"><label for="n-mencion">Mención o área</label><input type="text" id="n-mencion" value="' + esc(x.mencion || '') + '"></div><div class="campo"><label for="n-organizacion">Organización</label><input type="text" id="n-organizacion" value="' + esc(x.organizacion || '') + '"></div></div><div id="n-msg"></div>',
       '<button class="btn p" type="button" id="n-ok">Guardar cambios</button>');
+    const sel = $('#n-inst', m.el), otraI = $('#n-inst-otra', m.el);
+    sel.onchange = () => { otraI.style.display = sel.value === 'otra' ? '' : 'none'; };
+    // Aviso del cambio: se muestra solo cuando el rol elegido es distinto del actual.
+    const verRol = () => {
+      const nuevo = $('input[name=n-rol]:checked', m.el).value;
+      m.el.querySelector('[data-solo-obs]').style.display = nuevo === 'observador' ? '' : 'none';
+      m.el.querySelectorAll('[data-ayuda]').forEach(a => { a.style.display = nuevo !== x.rol_curso && (a.dataset.ayuda === 'obs') === (nuevo === 'observador') ? '' : 'none'; });
+    };
+    m.el.querySelectorAll('input[name=n-rol]').forEach(r => r.addEventListener('change', verRol)); verRol();
     $('#n-ok', m.el).onclick = async ev => {
       const d = Object.assign(leerBasicos(m.el), { usuario_id: x.id, mencion: $('#n-mencion', m.el).value, organizacion: $('#n-organizacion', m.el).value });
+      const rol = $('input[name=n-rol]:checked', m.el).value;
+      const instN = sel.value === 'otra' ? otraI.value.trim() : sel.value;
+      if (rol === 'observador' && !instN) { M.msg($('#n-msg', m.el), 'Indica la institución del observador.', 'mal'); return; }
       await M.ocupado(ev.currentTarget, async () => {
-        try { await M.api('actualizarPersona', d); m.cerrar(); await cargarPersonas(); }
-        catch (e) { M.msg($('#n-msg', m.el), e.message, 'mal'); }
+        try {
+          if (rol !== x.rol_curso || (rol === 'observador' && instN !== (x.institucion_obs || ''))) await M.api('cambiarRolInscripcion', { inscripcion_id: x.inscripcion_id, rol: rol, institucion_obs: instN });
+          await M.api('actualizarPersona', d); m.cerrar(); await cargarPersonas(); cargarVersiones();
+        } catch (e) { M.msg($('#n-msg', m.el), e.message, 'mal'); }
       });
     };
   }

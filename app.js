@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const CFG = window.METIS_CONFIG || {};
-  const VERSION_INTERFAZ = '0.9.1';
+  const VERSION_INTERFAZ = '0.9.2';
 
   // Acciones que esta interfaz usa. Se comparan con las del servicio para detectar desajustes.
   const CONTRATO = ['ping', 'loginGoogle', 'loginClave', 'infoRegistro', 'registrarConGoogle', 'registrarConClave',
@@ -11,7 +11,7 @@
     'actualizarPersona', 'reenviarAcceso', 'cambiarEstadoInscripcion', 'cargaMasiva', 'verFoto',
     'misSesiones', 'verSesion', 'listarSesiones', 'generarSesiones', 'verSesionDocente', 'guardarSesion', 'cambiarEstadoSesiones', 'cambiarAperturaSesion',
     'registrarAsistencia', 'guardarRespuesta', 'subirArchivo', 'guardarTareas', 'codigoAsistencia', 'listarAsistencia', 'marcarAsistencia', 'entregasSesion', 'verRespuesta',
-    'cargarTareasBase', 'actualizarPlanBase', 'completarGuiasBase', 'cambiarAccesoInscripcion', 'miAvance'];
+    'cargarTareasBase', 'actualizarPlanBase', 'completarGuiasBase', 'cambiarAccesoInscripcion', 'miAvance', 'cambiarRolInscripcion'];
 
   const M = window.M = { estado: { token: null, sesion: null, versionId: null }, CONTRATO: CONTRATO, ESPERA_MAX_MS: 40000 };
   const app = () => document.getElementById('app');
