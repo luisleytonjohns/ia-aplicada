@@ -2,7 +2,7 @@
 (function () {
   'use strict';
   const CFG = window.METIS_CONFIG || {};
-  const VERSION_INTERFAZ = '0.9.3';
+  const VERSION_INTERFAZ = '0.10.0';
 
   // Acciones que esta interfaz usa. Se comparan con las del servicio para detectar desajustes.
   const CONTRATO = ['ping', 'loginGoogle', 'loginClave', 'infoRegistro', 'registrarConGoogle', 'registrarConClave',
@@ -312,6 +312,7 @@
     const curso = '<div style="border-top:1px solid rgba(247,245,239,.25);padding-top:14px;display:grid;gap:4px"><span class="lema" style="opacity:.75">Registro en</span><b style="font:600 1.15rem/1.3 var(--disp)">' + esc(v.asignatura) + '</b><span>' + esc([v.institucion, v.escuela].filter(Boolean).join(' · ')) + '</span><span>' + esc([v.periodo, v.anio].filter(Boolean).join(' ')) + '</span></div>';
     app().innerHTML = '<div class="acceso">' + panelMarca(curso) + '<section class="lado" style="align-items:flex-start"><div class="caja" style="max-width:640px">' +
       '<div><h1>Crea tu cuenta</h1><p class="sub">Completa tu ficha. Toma unos tres minutos.</p></div>' +
+      ((v.documentos || []).length ? '<div class="reg-docs"><b>Documentos del curso</b><p class="sub" style="margin:0">Léelos antes de la primera clase. Se abren en una pestaña nueva, sin perder tu registro.</p><div class="docs-franja">' + v.documentos.map(x => '<a class="doc-btn" href="' + esc(x.url) + '" target="_blank" rel="noopener">' + esc(x.titulo) + '</a>').join('') + '</div></div>' : '') +
       '<form id="g-form" class="caja" style="max-width:none" novalidate>' + M.formFicha({}, { compromiso: true, dominio: info.dominio }) +
       '<fieldset><legend>Cómo ingresarás</legend><p class="sub" style="font-size:.88rem">Con Google, la cuenta debe ser uno de los correos de tu ficha. Con clave, ingresarás con tu correo institucional.</p>' +
       '<div id="g-google"></div><div class="sep">o crea una clave</div><div class="fila">' +

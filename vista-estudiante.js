@@ -72,6 +72,30 @@
     if (t.estado === 'borrador') return '<span class="chip info">Borrador</span>';
     return '<span class="chip gris">Sin empezar</span>';
   }
+  /* ---------- Documentos del curso ---------- */
+  const ICO_DOC = { programa: 'M6 3h9l4 4v14H6zM14 3v5h5M9 12h7M9 16h7', manual: 'M4 5c3-1.5 5-1.5 8 0v15c-3-1.5-5-1.5-8 0zM12 5c3-1.5 5-1.5 8 0v15c-3-1.5-5-1.5-8 0z', otro: 'M6 3h9l4 4v14H6zM14 3v5h5' };
+  const icoDoc = t => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + (ICO_DOC[t] || ICO_DOC.otro) + '"/></svg>';
+  function franjaDocs(v) {
+    const docs = v.documentos || [];
+    if (!docs.length) return '';
+    return '<div class="docs-franja">' + docs.map(x => '<a class="doc-btn" href="' + esc(x.url) + '" target="_blank" rel="noopener" data-doc="' + esc(x.tipo) + '">' + icoDoc(x.tipo) + '<span>' + esc(x.titulo) + '</span></a>').join('') + '</div>';
+  }
+  /** Aviso para leer el manual: hasta una semana después de la primera sesión, mientras no se haya abierto. */
+  function avisoManual(v, ses) {
+    const man = (v.documentos || []).find(x => x.tipo === 'manual');
+    if (!man || M.leer('metis_manual_' + v.id) === '1') return '';
+    const fechas = ses.map(s => s.fecha).filter(Boolean).sort();
+    if (fechas.length) { const lim = new Date(fechas[0] + 'T12:00:00'); lim.setDate(lim.getDate() + 7); if (new Date() > lim) return ''; }
+    return '<section class="tarjeta aviso-manual"><div class="am-ico">' + icoDoc('manual') + '</div><div><b>Antes de la primera clase, lee el ' + esc(man.titulo) + '</b><p>Explica cómo funciona el curso, qué tienes que hacer en cada sesión y cómo usar Metis. Así la primera clase parte directo con la inteligencia artificial.</p></div>' +
+      '<div class="acciones"><a class="btn p" href="' + esc(man.url) + '" target="_blank" rel="noopener" data-manual-visto>Abrir el manual</a><button type="button" class="btn t" data-manual-visto>Ya lo leí</button></div></section>';
+  }
+  function activarDocs(c, v) {
+    c.querySelectorAll('[data-manual-visto], [data-doc="manual"]').forEach(b => b.addEventListener('click', () => {
+      M.guardar('metis_manual_' + v.id, '1');
+      const k = c.querySelector('.aviso-manual'); if (k) setTimeout(() => k.remove(), 150);
+    }));
+  }
+
   const icoEstado = (t, bloq) => '<i class="ico-t ' + (bloq ? 'bloq' : t.estado) + '" aria-hidden="true"></i>';
   const pctSesion = s => s.n_tareas ? Math.round(100 * s.n_enviadas / s.n_tareas) : 0;
 
@@ -122,10 +146,10 @@
     const resumen = '<section class="tarjeta resumen-curso"><div><span class="lema">Tu curso</span><b>' + hechas + ' de ' + total + ' sesiones</b><div class="barra-p"><i style="width:' + Math.round(100 * hechas / total) + '%"></i></div></div>' +
       (obs ? '' : '<div><span class="lema">Asistencia</span><b>' + (asisPct == null ? 'Sin registros aún' : asisPct + '%') + '</b><small>Mínimo ' + (v.asistencia_min || 0) + '%</small></div>') +
       '<div><a class="btn s" href="#avance">Ver mi avance</a></div></section>';
-    c.innerHTML = '<div class="est-cab"><span class="lema">Hola, ' + esc(u.primer_nombre || u.nombre) + '</span><h1>' + esc(v.asignatura) + '</h1><p>' + esc([v.institucion, v.escuela, [v.periodo, v.anio].filter(Boolean).join(' ')].filter(Boolean).join(' · ')) + '</p>' + M.selectorCurso() + '</div>' +
+    c.innerHTML = '<div class="est-cab"><span class="lema">Hola, ' + esc(u.primer_nombre || u.nombre) + '</span><h1>' + esc(v.asignatura) + '</h1><p>' + esc([v.institucion, v.escuela, [v.periodo, v.anio].filter(Boolean).join(' ')].filter(Boolean).join(' · ')) + '</p>' + franjaDocs(v) + M.selectorCurso() + '</div>' +
       (obs ? '<div class="msg info">Perfil observador: ves el curso tal como lo ve un estudiante, con el caso de ejemplo. No puedes enviar trabajos.</div>' : '') +
-      instalar + '<div class="hoy-grid">' + foco + '<div class="hoy-lado">' + pend + resumen + '</div></div>';
-    M.activarInstalar(c);
+      (obs ? '' : avisoManual(v, ses)) + instalar + '<div class="hoy-grid">' + foco + '<div class="hoy-lado">' + pend + resumen + '</div></div>';
+    M.activarInstalar(c); activarDocs(c, v);
     const ino = $('#inst-no'); if (ino) ino.onclick = () => { M.guardar('metis_inst_no', '1'); const k = c.querySelector('.instalar-card'); if (k) k.remove(); };
     const sel = $('#a-curso'); if (sel) sel.addEventListener('change', () => { M.estado.versionId = sel.value; M.guardar('metis_version', sel.value); M.conVelo(() => vistaHoy(c)); });
     if (s && s.fecha === h) S.activarReloj(s, v);
@@ -165,10 +189,14 @@
       '<ul class="mat-lista">' + (s.materiales || []).map(m => '<li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + (ICO_MAT[m.tipo] || ICO_MAT.enlace) + '"/></svg><span><b>' + esc(m.titulo) + '</b><small>' + esc(window.Sesiones.TIPOS[m.tipo] || m.tipo) + '</small></span><a class="btn s peq" href="' + esc(m.url) + '" target="_blank" rel="noopener">Abrir</a></li>').join('') +
       (s.demo ? '<li class="demo-l"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4l14 8-14 8z"/></svg><span><b>Demostración: ' + esc(s.demo.titulo || 'caso Los Aromos') + '</b><small>Caso Distribuidora Los Aromos · ' + s.demo.n_pasos + ' pasos con sus prompts</small></span><a class="btn s peq" href="#sesion/' + esc(s.id) + '">Ver</a></li>' : '') + '</ul></section>';
     const actuales = g.curso.concat(g.proximas).filter(con), pasados = g.anteriores.filter(con);
-    c.innerHTML = cab('Materiales', 'Biblioteca del curso', 'Lecturas, cuadernos, podcasts, videos y demostraciones de cada sesión. Se abren el lunes de cada semana: son la lectura previa obligatoria.') +
-      (actuales.length || pasados.length ? '' : '<section class="tarjeta"><p class="sub" style="margin:0">Aún no hay materiales abiertos. Se abren el lunes de cada semana del curso.</p></section>') +
+    const docs = d.v.documentos || [];
+    const docsHTML = docs.length ? '<section class="tarjeta mat-ses"><div class="mat-cab"><span class="num ndoc">' + icoDoc('programa') + '</span><div><b>Documentos del curso</b><small>Programa, manual y documentos generales</small></div></div><ul class="mat-lista">' +
+      docs.map(x => '<li>' + icoDoc(x.tipo) + '<span><b>' + esc(x.titulo) + '</b><small>' + esc({ programa: 'Programa', manual: 'Manual del estudiante', otro: 'Documento' }[x.tipo] || 'Documento') + '</small></span><a class="btn s peq" href="' + esc(x.url) + '" target="_blank" rel="noopener" data-doc="' + esc(x.tipo) + '">Abrir</a></li>').join('') + '</ul></section>' : '';
+    c.innerHTML = cab('Materiales', 'Biblioteca del curso', 'Los documentos del curso y, por sesión, lecturas, cuadernos, podcasts, videos y demostraciones. Los de cada sesión se abren el lunes de su semana: son la lectura previa obligatoria.') + docsHTML +
+      (actuales.length || pasados.length || docs.length ? '' : '<section class="tarjeta"><p class="sub" style="margin:0">Aún no hay materiales abiertos. Se abren el lunes de cada semana del curso.</p></section>') +
       (actuales.length ? '<h2 class="est-sec">Esta semana y próximas</h2>' + actuales.map(tarjeta).join('') : '') +
       (pasados.length ? '<h2 class="est-sec">Sesiones anteriores</h2>' + pasados.map(tarjeta).join('') : '');
+    activarDocs(c, d.v);
   }
 
   /* ---------- Tareas ---------- */

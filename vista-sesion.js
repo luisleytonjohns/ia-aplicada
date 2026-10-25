@@ -99,6 +99,41 @@
       cuerpo + '<a class="btn s peq" href="' + esc(m.url) + '" target="_blank" rel="noopener">Abrir en una pestaña nueva</a></article>';
   };
 
+  /* ---------- Probar un prompt en una IA ----------
+   * Cada botón copia el prompt y abre la IA en otra pestaña. ChatGPT, Claude y Perplexity reciben el
+   * prompt ya escrito por la dirección (?q=); Gemini no lo permite, así que se abre y el estudiante pega.
+   * Los logos son los íconos oficiales de cada sitio, servidos por el servicio de favicons de Google.
+   * Ningún dato pasa por Metis: el prompt va del navegador del estudiante a la IA que elija. */
+  const IAS = [
+    { id: 'chatgpt', nombre: 'ChatGPT', dominio: 'chatgpt.com', url: q => 'https://chatgpt.com/?q=' + q },
+    { id: 'claude', nombre: 'Claude', dominio: 'claude.ai', url: q => 'https://claude.ai/new?q=' + q },
+    { id: 'perplexity', nombre: 'Perplexity', dominio: 'perplexity.ai', url: q => 'https://www.perplexity.ai/search?q=' + q },
+    { id: 'gemini', nombre: 'Gemini', dominio: 'gemini.google.com', url: () => 'https://gemini.google.com/app', pegar: true }
+  ];
+  const LARGO_URL = 6000;
+  M.botonesIA = function () {
+    return '<div class="probar-ia"><span class="pi-t">Probar en</span>' + IAS.map(a =>
+      '<button class="pi-btn" type="button" data-ia="' + a.id + '" title="Abrir en ' + a.nombre + (a.pegar ? ' (se copia el prompt para que lo pegues)' : ' con el prompt ya escrito') + '" aria-label="Probar en ' + a.nombre + '">' +
+      '<img src="https://www.google.com/s2/favicons?domain=' + a.dominio + '&sz=64" alt="" width="20" height="20" loading="lazy" onerror="this.remove()"><span>' + a.nombre + '</span></button>').join('') +
+      '<small class="pi-msg" aria-live="polite"></small></div>';
+  };
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-ia]'); if (!b) return;
+    const a = IAS.find(x => x.id === b.dataset.ia); if (!a) return;
+    const caja = b.closest('.prompt-caja, [data-prompt-ia]');
+    const fuente = caja && (caja.querySelector('pre') || caja.querySelector('textarea[data-c=prompt]'));
+    const texto = fuente ? (fuente.value !== undefined ? fuente.value : fuente.textContent).trim() : '';
+    if (!texto) return;
+    const q = encodeURIComponent(texto);
+    const pegar = a.pegar || q.length > LARGO_URL;
+    window.open(pegar ? (a.pegar ? a.url() : a.url('')) : a.url(q), '_blank', 'noopener');
+    const msg = b.parentNode.querySelector('.pi-msg');
+    const decir = t => { if (msg) { msg.textContent = t; clearTimeout(msg._t); msg._t = setTimeout(() => { msg.textContent = ''; }, 6000); } };
+    const ok = pegar ? 'Prompt copiado. Pégalo en ' + a.nombre + ' (Ctrl+V).' : 'Se abrió ' + a.nombre + ' con el prompt. Revísalo antes de enviarlo.';
+    if (navigator.clipboard) navigator.clipboard.writeText(texto).then(() => decir(ok)).catch(() => decir(pegar ? 'Copia el prompt con el botón Copiar y pégalo en ' + a.nombre + '.' : ok));
+    else decir(ok);
+  });
+
   /* ---------- Demostración del caso Los Aromos ---------- */
   S.demo = function (dm) {
     if (!dm || !dm.pasos || !dm.pasos.length) return '';
@@ -110,7 +145,7 @@
         const formula = /^=/.test(p.prompt || '');
         return '<li><details' + (i === 0 ? ' open' : '') + '><summary><span class="dn">' + (i + 1) + '</span><b>' + esc(p.titulo || 'Paso ' + (i + 1)) + '</b></summary><div class="dp-cuerpo">' +
           (p.hace ? '<p>' + esc(p.hace) + '</p>' : '') +
-          (p.prompt ? '<div class="prompt-caja"><div class="pc-cab"><span>' + (formula ? 'Fórmula en Google Sheets' : 'Prompt') + '</span><button class="btn t peq" type="button" data-copiar>Copiar</button></div><pre>' + esc(p.prompt) + '</pre></div>' : '') +
+          (p.prompt ? '<div class="prompt-caja"><div class="pc-cab"><span>' + (formula ? 'Fórmula en Google Sheets' : 'Prompt') + '</span><button class="btn t peq" type="button" data-copiar>Copiar</button></div><pre>' + esc(p.prompt) + '</pre>' + (formula ? '' : M.botonesIA()) + '</div>' : '') +
           (p.observa ? '<p class="observa"><b>Qué observar:</b> ' + esc(p.observa) + '</p>' : '') + '</div></details></li>';
       }).join('') + '</ol>' +
       (dm.leccion ? '<p class="leccion"><b>La lección:</b> ' + esc(dm.leccion) + '</p>' : '') + '</div>';

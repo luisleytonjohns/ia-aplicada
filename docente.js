@@ -282,11 +282,27 @@
       '<fieldset><legend>Reglas</legend><div class="fila">' + c('asistencia_min', 'Asistencia mínima (%)', 'number') + c('tolerancia_min', 'Tolerancia de llegada (min)', 'number', 'Después de estos minutos, la asistencia queda como atraso.') + c('defensas_sesion', 'Defensas por sesión', 'number') + c('exigencia', 'Exigencia (%)', 'number') + '</div>' +
       c('whatsapp', 'Link del grupo de WhatsApp', 'url', 'Opcional.') + '</fieldset>' +
       '<fieldset><legend>Acceso de estudiantes a Metis</legend><div class="fila">' + c('acceso_desde', 'Desde', 'date', 'Día en que pueden empezar a ingresar.') + c('acceso_hasta', 'Hasta', 'date', 'Último día con acceso, hasta las 23:59.') + '</div>' +
-      '<span class="ayuda">Vacío: sin límite. Fuera de este período el estudiante no puede ingresar, aunque esté inscrito. Sugerencia: desde una semana antes de la primera sesión hasta 30 días después de la última. A cada persona le puedes dar fechas propias desde Personas.</span>' +
-      '<div class="campo"><label for="v-estado">Estado</label><select id="v-estado"><option value="activa"' + (v.estado !== 'archivada' ? ' selected' : '') + '>Activa</option><option value="archivada"' + (v.estado === 'archivada' ? ' selected' : '') + '>Archivada</option></select></div></fieldset><div id="v-msg"></div>',
+      '<span class="ayuda">Vacío: sin límite. Fuera de este período el estudiante no puede ingresar, aunque esté inscrito. Sugerencia: desde una semana antes de la primera sesión hasta 30 días después de la última. A cada persona le puedes dar fechas propias desde Personas.</span></fieldset>' +
+      '<fieldset><legend>Documentos del curso</legend><p class="sub" style="margin:0">El programa, el manual del estudiante y otros documentos generales. El estudiante los ve en Hoy, en Materiales y en la página de registro, y el manual va en el correo de bienvenida.</p><div id="v-docs" style="display:grid;gap:8px"></div><div><button class="btn s peq" type="button" id="v-doc-mas">Agregar documento</button></div>' +
+      '<span class="ayuda">Súbelos a Drive, compártelos como "Cualquier persona con el enlace" y pega aquí la dirección completa.</span></fieldset>' +
+      '<fieldset><legend>Estado</legend><div class="campo"><label for="v-estado">Estado de la versión</label><select id="v-estado"><option value="activa"' + (v.estado !== 'archivada' ? ' selected' : '') + '>Activa</option><option value="archivada"' + (v.estado === 'archivada' ? ' selected' : '') + '>Archivada</option></select></div></fieldset><div id="v-msg"></div>',
       '<button class="btn p" type="button" id="v-guardar">Guardar versión</button>');
+    const docs = $('#v-docs', m.el);
+    const TIPOS_DOC = { programa: 'Programa', manual: 'Manual del estudiante', otro: 'Otro' };
+    const filaDoc = x => {
+      x = x || { tipo: 'programa', titulo: '', url: '' };
+      const r = document.createElement('div'); r.className = 'mat-ed';
+      r.innerHTML = '<select data-tipo>' + Object.keys(TIPOS_DOC).map(t => '<option value="' + t + '"' + (x.tipo === t ? ' selected' : '') + '>' + TIPOS_DOC[t] + '</option>').join('') + '</select>' +
+        '<input type="text" data-tit placeholder="Título" value="' + esc(x.titulo) + '"><input type="url" data-url placeholder="https://" value="' + esc(x.url) + '"><button class="btn t peq" type="button" data-quitar>Quitar</button>';
+      r.querySelector('[data-quitar]').onclick = () => r.remove();
+      docs.appendChild(r);
+    };
+    (v.documentos || []).forEach(filaDoc);
+    if (!(v.documentos || []).length) { filaDoc({ tipo: 'programa', titulo: 'Programa del curso', url: '' }); filaDoc({ tipo: 'manual', titulo: 'Manual del estudiante', url: '' }); }
+    $('#v-doc-mas', m.el).onclick = () => filaDoc({ tipo: 'otro', titulo: '', url: '' });
     $('#v-guardar', m.el).onclick = async ev => {
       const d = { id: v.id };
+      d.documentos = Array.from(docs.querySelectorAll('.mat-ed')).map(r => ({ tipo: r.querySelector('[data-tipo]').value, titulo: r.querySelector('[data-tit]').value.trim(), url: r.querySelector('[data-url]').value.trim() })).filter(x => x.url);
       ['institucion', 'escuela', 'logo_url', 'asignatura', 'codigo', 'periodo', 'anio', 'fecha_inicio', 'sesiones', 'sesiones_semana', 'minutos', 'hora_inicio', 'asistencia_min', 'tolerancia_min', 'defensas_sesion', 'exigencia', 'whatsapp', 'estado', 'acceso_desde', 'acceso_hasta']
         .forEach(k => { d[k] = $('#v-' + k, m.el).value; });
       d.apertura_lunes = $('#v-apertura_lunes', m.el).checked;

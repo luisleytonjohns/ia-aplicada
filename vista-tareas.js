@@ -285,7 +285,8 @@
     const nota = e._nota ? '<p class="ej-nota"><b>Por qué es un buen ejemplo:</b> ' + esc(e._nota) + '</p>' : '';
     return '<details class="ejemplo" data-ejemplo><summary>Ver ejemplo resuelto · Distribuidora Los Aromos</summary>' +
       '<div class="ej-cuerpo"><p class="sub">Caso ficticio del curso. Úsalo como guía de forma y profundidad, no como respuesta para copiar: tu tarea es sobre tu organización.</p>' +
-      '<div class="editor-ej">' + T.editorHTML(tareaEj(t), e, true) + '</div>' + nota + '</div></details>';
+      '<div class="editor-ej"' + (t.tipo === 'prompt' && e.prompt ? ' data-prompt-ia' : '') + '>' + T.editorHTML(tareaEj(t), e, true) +
+      (t.tipo === 'prompt' && e.prompt && M.botonesIA ? M.botonesIA() : '') + '</div>' + nota + '</div></details>';
   }
   /** Activa los ejemplos de un contenedor: el diagrama se dibuja solo al abrirlo. */
   T.activarEjemplos = function (cont, tareas) {
