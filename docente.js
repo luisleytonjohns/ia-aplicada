@@ -605,20 +605,49 @@
     return d;
   }
 
+  /* ---------- Cómo ingresará: solo Google o también clave temporal ---------- */
+  const esGmail = c => /@(gmail|googlemail)\.com$/i.test(String(c || '').trim());
+  function bloqueModo() {
+    return '<div class="campo"><span class="etq">Cómo ingresará</span><div class="opciones">' +
+      '<label><input type="radio" name="n-modo" value="google"><span>Solo con Google</span></label>' +
+      '<label><input type="radio" name="n-modo" value="clave" checked><span>Google y clave temporal</span></label></div>' +
+      '<span class="ayuda" data-modo-ayuda></span></div>';
+  }
+  /** Propone el modo según los correos (Gmail: solo Google) hasta que el docente lo elija a mano. */
+  function activarModo(el) {
+    let manual = false;
+    const ayuda = $('[data-modo-ayuda]', el);
+    const texto = () => {
+      const g = $('input[name=n-modo]:checked', el).value === 'google';
+      ayuda.textContent = g ? 'No se crea clave. Entra con el botón de Google, con uno de los correos registrados que sea cuenta de Google. Si después quiere una clave, la crea con «¿Olvidaste tu clave?».'
+        : 'Se crea una clave temporal de respaldo. Igual puede entrar con Google si su correo es una cuenta de Google; en ese caso la clave temporal se anula sola y no se le pide cambiarla.';
+    };
+    const proponer = () => {
+      if (manual) return;
+      const g = esGmail($('#n-correo_institucional', el).value) || esGmail($('#n-correo_personal', el).value);
+      $('input[name=n-modo][value=' + (g ? 'google' : 'clave') + ']', el).checked = true; texto();
+    };
+    el.querySelectorAll('input[name=n-modo]').forEach(r => r.addEventListener('change', () => { manual = true; texto(); }));
+    ['#n-correo_institucional', '#n-correo_personal'].forEach(id => { const i = $(id, el); if (i) i.addEventListener('input', proponer); });
+    proponer();
+  }
+
   function formPersona() {
     const m = M.modal('Agregar persona',
       '<div class="campo"><span class="etq">Rol en esta versión</span><div class="opciones"><label><input type="radio" name="n-rol" value="estudiante" checked><span>Estudiante</span></label><label><input type="radio" name="n-rol" value="observador"><span>Observador</span></label></div>' +
       '<span class="ayuda">El observador ve el curso completo, con todas sus sesiones, materiales y actividades, sin depender de las fechas del curso, pero no puede enviar trabajos. Úsalo para jefaturas, directivos y académicos de otras instituciones.</span></div>' + camposBasicos() + bloqueAcceso({}, 'estudiante') +
-      '<label class="check"><input type="checkbox" id="n-enviar" checked><span>Enviar por correo el acceso con su clave temporal</span></label><div id="n-msg"></div>',
+      bloqueModo() + '<label class="check"><input type="checkbox" id="n-enviar" checked><span>Enviar por correo el acceso</span></label><div id="n-msg"></div>',
       '<button class="btn p" type="button" id="n-ok">Agregar</button>');
-    activarBloqueAcceso(m.el);
+    activarBloqueAcceso(m.el); activarModo(m.el);
     $('#n-ok', m.el).onclick = async ev => {
-      const d = Object.assign(leerBasicos(m.el), leerAcceso(m.el), { version_id: D.versionId, rol: $('input[name=n-rol]:checked', m.el).value, enviar: $('#n-enviar', m.el).checked });
+      const d = Object.assign(leerBasicos(m.el), leerAcceso(m.el), { version_id: D.versionId, rol: $('input[name=n-rol]:checked', m.el).value, modo_acceso: $('input[name=n-modo]:checked', m.el).value, enviar: $('#n-enviar', m.el).checked });
       await M.ocupado(ev.currentTarget, async () => {
         try {
           const r = await M.api('crearPersona', d);
           $('.cuerpo', m.el).innerHTML = '<div class="msg ok">' + esc(r.usuario.nombre) + (r.inscripcion_nueva ? ' quedó inscrito en esta versión.' : ' ya estaba inscrito en esta versión.') + '</div>' +
-            (r.clave_temporal ? '<p style="margin:0">Clave temporal' + (r.correo_enviado ? ' (también enviada por correo)' : ' (no se pudo enviar por correo; entrégala tú)') + ':</p><div class="clave-temp">' + esc(r.clave_temporal) + '</div><p style="margin:0;font-size:.85rem;color:var(--pizarra)">Ingresa con ' + esc(r.usuario.correo_institucional) + '. Al entrar se le pedirá cambiarla.</p>' : '<p style="margin:0">Ya tenía clave propia; puede ingresar como siempre.</p>');
+            (r.clave_temporal ? '<p style="margin:0">Clave temporal' + (r.correo_enviado ? ' (también enviada por correo)' : ' (no se pudo enviar por correo; entrégala tú)') + ':</p><div class="clave-temp">' + esc(r.clave_temporal) + '</div><p style="margin:0;font-size:.85rem;color:var(--pizarra)">Ingresa con ' + esc(r.usuario.correo_institucional) + '. Si entra con clave se le pedirá cambiarla; si entra con Google, la clave temporal se anula sola.</p>'
+              : r.modo === 'google' ? '<p style="margin:0">Ingresa con el botón de Google, con ' + esc([r.usuario.correo_institucional, r.usuario.correo_personal].filter(Boolean).join(' o ')) + '. No se creó clave' + (r.correo_enviado ? '; el correo de bienvenida ya se envió.' : '.') + '</p>'
+              : '<p style="margin:0">Ya tenía clave propia; puede ingresar como siempre.</p>');
           $('footer', m.el).innerHTML = '<button class="btn p" type="button" data-cerrar>Listo</button>';
           await cargarPersonas(); cargarVersiones();
         } catch (e) { M.msg($('#n-msg', m.el), e.message, 'mal'); }
@@ -664,13 +693,19 @@
   }
 
   function reenviar(x) {
-    const m = M.modal('Reenviar acceso', '<p style="margin:0">Se generará una <b>clave temporal nueva</b> para ' + esc(x.nombre) + ' y se enviará a ' + esc([x.correo_institucional, x.correo_personal].filter(Boolean).join(' y ')) + '. La clave anterior dejará de funcionar. El acceso con Google no cambia.</p><div id="n-msg"></div>',
-      '<button class="btn s" type="button" data-cerrar>Cancelar</button><button class="btn p" type="button" id="n-ok">Generar y enviar</button>');
+    const correos = esc([x.correo_institucional, x.correo_personal].filter(Boolean).join(' y '));
+    const g0 = esGmail(x.correo_institucional) || esGmail(x.correo_personal);
+    const m = M.modal('Reenviar acceso', '<p style="margin:0">Se enviará un correo a ' + correos + ' con las instrucciones para ingresar.</p>' +
+      '<div class="campo"><span class="etq">Qué enviar</span><div class="opciones">' +
+      '<label><input type="radio" name="n-modo" value="google"' + (g0 ? ' checked' : '') + '><span>Solo el recordatorio para entrar con Google</span></label>' +
+      '<label><input type="radio" name="n-modo" value="clave"' + (g0 ? '' : ' checked') + '><span>Una clave temporal nueva</span></label></div>' +
+      '<span class="ayuda">La clave temporal nueva reemplaza a la anterior. El acceso con Google no cambia en ningún caso.</span></div><div id="n-msg"></div>',
+      '<button class="btn s" type="button" data-cerrar>Cancelar</button><button class="btn p" type="button" id="n-ok">Enviar</button>');
     $('#n-ok', m.el).onclick = async ev => {
       await M.ocupado(ev.currentTarget, async () => {
         try {
-          const r = await M.api('reenviarAcceso', { usuario_id: x.id, version_id: D.versionId });
-          $('.cuerpo', m.el).innerHTML = '<div class="msg ' + (r.correo_enviado ? 'ok' : 'aviso') + '">' + (r.correo_enviado ? 'Acceso enviado por correo.' : 'No se pudo enviar el correo; entrega tú la clave.') + '</div><div class="clave-temp">' + esc(r.clave_temporal) + '</div>';
+          const r = await M.api('reenviarAcceso', { usuario_id: x.id, version_id: D.versionId, modo_acceso: $('input[name=n-modo]:checked', m.el).value });
+          $('.cuerpo', m.el).innerHTML = '<div class="msg ' + (r.correo_enviado ? 'ok' : 'aviso') + '">' + (r.correo_enviado ? 'Acceso enviado por correo.' : (r.clave_temporal ? 'No se pudo enviar el correo; entrega tú la clave.' : 'No se pudo enviar el correo. Avísale que entre con el botón de Google.')) + '</div>' + (r.clave_temporal ? '<div class="clave-temp">' + esc(r.clave_temporal) + '</div>' : '');
           $('footer', m.el).innerHTML = '<button class="btn p" type="button" data-cerrar>Listo</button>';
         } catch (e) { M.msg($('#n-msg', m.el), e.message, 'mal'); }
       });
@@ -685,14 +720,19 @@
       '<div class="campo"><label for="n-texto">Filas</label><textarea id="n-texto" placeholder="Ana\t\tPérez\tSoto\tana.perez@mail.udp.cl\t\t+56912345678"></textarea></div>' +
       '<div class="opciones"><label><input type="radio" name="n-rol" value="estudiante" checked><span>Estudiantes</span></label><label><input type="radio" name="n-rol" value="observador"><span>Observadores</span></label></div>' +
       bloqueAcceso({}, 'estudiante') + '<span class="ayuda">La institución y las fechas se aplican a todas las filas de esta carga.</span>' +
+      '<div class="campo"><span class="etq">Cómo ingresarán</span><div class="opciones">' +
+      '<label><input type="radio" name="n-modo" value="auto" checked><span>Según el correo</span></label>' +
+      '<label><input type="radio" name="n-modo" value="google"><span>Todos solo con Google</span></label>' +
+      '<label><input type="radio" name="n-modo" value="clave"><span>Todos con Google y clave temporal</span></label></div>' +
+      '<span class="ayuda">Según el correo: quien tiene un correo de Gmail entra solo con Google; los demás reciben además una clave temporal de respaldo, que se anula sola si entran con Google.</span></div>' +
       '<label class="check"><input type="checkbox" id="n-enviar" checked><span>Enviar por correo el acceso a cada persona</span></label><div id="n-msg"></div>',
       '<button class="btn p" type="button" id="n-ok">Cargar</button>');
     activarBloqueAcceso(m.el);
     $('#n-ok', m.el).onclick = async ev => {
       await M.ocupado(ev.currentTarget, async () => {
         try {
-          const r = await M.api('cargaMasiva', Object.assign(leerAcceso(m.el), { version_id: D.versionId, texto: $('#n-texto', m.el).value, rol: $('input[name=n-rol]:checked', m.el).value, enviar: $('#n-enviar', m.el).checked }));
-          let h = '<div class="msg ok">' + r.creados + ' personas nuevas · ' + r.ya_existian + ' ya existían y quedaron inscritas · ' + r.rechazados.length + ' filas rechazadas.</div>';
+          const r = await M.api('cargaMasiva', Object.assign(leerAcceso(m.el), { version_id: D.versionId, texto: $('#n-texto', m.el).value, rol: $('input[name=n-rol]:checked', m.el).value, modo_acceso: $('input[name=n-modo]:checked', m.el).value, enviar: $('#n-enviar', m.el).checked }));
+          let h = '<div class="msg ok">' + r.creados + ' personas nuevas · ' + r.ya_existian + ' ya existían y quedaron inscritas · ' + r.rechazados.length + ' filas rechazadas.' + (r.solo_google ? ' ' + r.solo_google + ' entrarán solo con Google.' : '') + '</div>';
           if (r.rechazados.length) h += '<div class="tabla"><table><thead><tr><th>Fila</th><th>Contenido</th><th>Motivo</th></tr></thead><tbody>' + r.rechazados.map(x => '<tr><td>' + x.fila + '</td><td><small>' + esc(x.contenido) + '</small></td><td>' + esc(x.motivo) + '</td></tr>').join('') + '</tbody></table></div>';
           if (r.claves.length) h += '<div class="msg aviso">Estas claves no se pudieron enviar por correo. Cópialas ahora; no se volverán a mostrar.</div><div class="tabla"><table><thead><tr><th>Persona</th><th>Correo</th><th>Clave temporal</th></tr></thead><tbody>' + r.claves.map(x => '<tr><td>' + esc(x.nombre) + '</td><td>' + esc(x.correo) + '</td><td><code>' + esc(x.clave) + '</code></td></tr>').join('') + '</tbody></table></div>';
           h += '<p style="margin:0;font-size:.82rem;color:var(--pizarra)">Correos disponibles hoy: ' + r.correos_restantes_hoy + '</p>';

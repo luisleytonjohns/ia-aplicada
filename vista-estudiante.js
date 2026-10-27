@@ -77,8 +77,9 @@
   const icoDoc = t => '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + (ICO_DOC[t] || ICO_DOC.otro) + '"/></svg>';
   function franjaDocs(v) {
     const docs = v.documentos || [];
-    if (!docs.length) return '';
-    return '<div class="docs-franja">' + docs.map(x => '<a class="doc-btn" href="' + esc(x.url) + '" target="_blank" rel="noopener" data-doc="' + esc(x.tipo) + '">' + icoDoc(x.tipo) + '<span>' + esc(x.titulo) + '</span></a>').join('') + '</div>';
+    const grupo = v.whatsapp ? '<a class="doc-btn" href="' + esc(v.whatsapp) + '" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18.5l1.3-3.6A7.5 7.5 0 1 1 8.6 18z"/></svg><span>Grupo del curso</span></a>' : '';
+    if (!docs.length && !grupo) return '';
+    return '<div class="docs-franja">' + docs.map(x => '<a class="doc-btn" href="' + esc(x.url) + '" target="_blank" rel="noopener" data-doc="' + esc(x.tipo) + '">' + icoDoc(x.tipo) + '<span>' + esc(x.titulo) + '</span></a>').join('') + grupo + '</div>';
   }
   /** Aviso para leer el manual: hasta una semana después de la primera sesión, mientras no se haya abierto. */
   function avisoManual(v, ses) {
